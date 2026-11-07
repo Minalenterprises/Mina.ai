@@ -49,7 +49,7 @@ export function Dieline({ design, showArtwork = true, showDimensions = true }: {
       {layout.panels.map(p => <g key={p.id} clipPath={p.circle || p.polygon ? `url(#clip-${uid}-${p.id})` : undefined}>
         <rect x={p.x} y={p.y} width={p.width} height={p.height} fill={p.id === 'window-hole' ? '#ffffff' : showArtwork ? design.color : '#f3f4f0'} />
         {p.id !== 'window-hole' && showArtwork && (a.enabled || surface.texture !== 'none') && active && <rect x={p.x} y={p.y} width={p.width} height={p.height} fill={`url(#surface-${uid}-${p.id})`} />}
-        {showArtwork && active && p.artwork && assets.images[p.id] && <image xlinkHref={assets.images[p.id]} preserveAspectRatio="xMidYMid meet" {...(p.id === 'sleeve-0' ? { ...artworkFrame(design, p), transform: `rotate(90 ${p.x + p.width / 2} ${p.y + p.height / 2})` } : artworkFrame(design, p))} />}
+        {showArtwork && active && p.artwork && assets.images[p.id] && <image xlinkHref={assets.images[p.id]} preserveAspectRatio="xMidYMid meet" {...(p.id === 'sleeve-0' || p.rotate ? { ...artworkFrame(design, p), transform: `rotate(90 ${p.x + p.width / 2} ${p.y + p.height / 2})` } : artworkFrame(design, p))} />}
       </g>)}
     </g>
     <g id="DieCut" fill="none" stroke="#df2871" strokeWidth="0.25">

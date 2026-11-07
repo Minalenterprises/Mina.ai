@@ -5,6 +5,7 @@ import type { Panel } from './dieline-layout'
 export function artworkFrame(design: Design, p: Panel) {
   const { length: L, width: W, height: H } = design.dimensions
   let width = p.width, height = p.height, cy = p.y + p.height / 2
+  if (p.frame) return { x: p.x + (p.width - p.frame.width) / 2, y: (p.frame.cy ?? cy) - p.frame.height / 2, width: p.frame.width, height: p.frame.height }
   if (p.artwork === 'front') {
     if (design.category === 'Canister') { width = Math.min(L, W) * .78; height = H * .64 }
     else if (design.category === 'Bag') { width *= .88; height *= .65; cy = p.y + p.height * .48 }
