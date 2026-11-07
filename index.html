@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en" class="dark motion-pending">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="color-scheme" content="dark">
+  <title>Stop Digging Through Dashboards · Vantage by Minal</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 25 25'%3E%3Ccircle cx='12.5' cy='12.5' r='12.5' fill='%23000'/%3E%3Cpath d='M12.5 0L25 12.5L12.5 25L0 12.5Z' fill='%23ededed'/%3E%3Cpath d='M12.5 5L20 12.5L12.5 20L5 12.5Z' fill='%23000'/%3E%3C/svg%3E">
+
+  <!-- Immediate Head Script: Add motion-pending class & 3500ms fallback timeout -->
+  <script>
+    (function() {
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.documentElement.classList.add('motion-pending');
+        window.__motionFallback = setTimeout(function() {
+          document.documentElement.classList.remove('motion-pending');
+        }, 3500);
+      } else {
+        document.documentElement.classList.remove('motion-pending');
+      }
+    })();
+  </script>
+
+  <style>
+    /* ==========================================================================
+       FONTS (Exact Reference Sans & Reference Display)
+       ========================================================================== */
+    @font-face {
+      font-family: "Reference Sans";
+      src: local("Reference Sans"), local("ReferenceSans"), local("SF Pro Display"), local("Helvetica Neue"), local("Arial");
+      font-weight: 100 900;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: "Reference Display";
+      src: local("Reference Display"), local("ReferenceDisplay"), local("Reference Sans"), local("Arial");
+      font-weight: 400 900;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      background: #000000;
+      color: #ffffff;
+      font-family: "Reference Sans", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    #root {
+      width: 100%;
+      min-height: 100%;
+    }
+  </style>
+</head>
+<body class="bg-black text-white antialiased selection:bg-white selection:text-black">
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>

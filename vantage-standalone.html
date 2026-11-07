@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="en" class="motion-pending">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="color-scheme" content="dark">
+  <title>Stop Digging Through Dashboards</title>
+
+  <!-- Immediate Head Script: Add motion-pending class & 3500ms fallback timeout -->
+  <script>
+    (function() {
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.documentElement.classList.add('motion-pending');
+        window.__motionFallback = setTimeout(function() {
+          document.documentElement.classList.remove('motion-pending');
+        }, 3500);
+      } else {
+        document.documentElement.classList.remove('motion-pending');
+      }
+    })();
+  </script>
+
+  <style>
+    /* ==========================================================================
+       FONTS (Exact Reference Sans & Reference Display)
+       ========================================================================== */
+    @font-face {
+      font-family: "Reference Sans";
+      src: local("Reference Sans"), local("ReferenceSans"), local("SF Pro Display"), local("Helvetica Neue"), local("Arial");
+      font-weight: 100 900;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: "Reference Display";
+      src: local("Reference Display"), local("ReferenceDisplay"), local("Reference Sans"), local("Arial");
+      font-weight: 400 900;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    /* ==========================================================================
+       RESET & ROOT VARIABLES
+       ========================================================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      font-family: "Reference Sans", Arial, sans-serif;
+      color-scheme: dark;
+      background: #000000;
+      color: #ffffff;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000000;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* ==========================================================================
+       LAYOUT ARCHITECTURE
+       ========================================================================== */
+    .viewport {
+      position: fixed;
+      inset: 0;
+      isolation: isolate;
+      background: #000000;
+      overflow: hidden;
+    }
+
+    .screen {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      height: 100%;
+      background: #000000;
+      overflow: hidden;
+
+      /* Desktop CSS variables (Exact specifications) */
+      --gutter-start: clamp(36px, 4.177vw, 96px);
+      --gutter-end: clamp(36px, 4.04vw, 96px);
+      --header-top: clamp(20px, 2.264vh, 30px);
+      --hero-bottom: clamp(34px, 5.19vh, 64px);
+      --display-size: clamp(58px, 7.64vh, 88px);
+      --display-leading: clamp(72px, 9.34vh, 106px);
+      --copy-size: clamp(14px, 1.70vh, 19px);
+      --copy-leading: clamp(19px, 2.17vh, 24px);
+      --title-copy-gap: clamp(15px, 2.08vh, 24px);
+      --copy-cta-gap: clamp(24px, 3.11vh, 36px);
+      --cta-width: clamp(142px, 15.09vh, 168px);
+      --cta-height: clamp(38px, 3.96vh, 44px);
+      --compact-control-font-size: clamp(17px, 1.75vh, 19px);
+      --action-control-font-size: clamp(17px, 1.78vh, 19.5px);
+      --primary-control-font-size: clamp(17px, 1.77vh, 19.25px);
+      --control-inline-nudge: -1px;
+      --control-baseline-shift: clamp(1px, .19vh, 2px);
+      --copy-optical-shift: clamp(0px, .1vh, 1px);
+      --watch-baseline-shift: clamp(2px, .38vh, 4px);
+      --card-width: clamp(150px, 18.96vh, 215px);
+    }
+
+    /* Full-bleed edge-to-edge background video */
+    .background {
+      position: absolute;
+      inset: 0;
+      z-index: -3;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* Screen vignette overlay */
+    .screen::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -2;
+      pointer-events: none;
+      background:
+        linear-gradient(180deg, rgba(0,0,0,.03), transparent 24%, transparent 82%, rgba(0,0,0,.05)),
+        radial-gradient(ellipse at 44% 54%, transparent 30%, rgba(0,0,0,.055) 100%);
+    }
+
+    /* ==========================================================================
+       HEADER (Top Bar)
+       ========================================================================== */
+    .header {
+      position: absolute;
+      inset: var(--header-top) var(--gutter-end) auto var(--gutter-start);
+      height: 48px;
+      display: flex;
+      align-items: flex-start;
+      white-space: nowrap;
+      z-index: 10;
+    }
+
+    /* Brand Logo: 25x25 SVG Disc */
+    .brand {
+      position: relative;
+      top: 10px;
+      display: inline-flex;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.3));
+      text-decoration: none;
+      flex-shrink: 0;
+      outline: none;
+    }
+    .brand:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 3px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: flex-start;
+      flex: 1;
+      height: 100%;
+    }
+
+    /* Nav Links */
+    .nav {
+      margin-left: clamp(36px, 3.03vw, 48px);
+      gap: clamp(32px, 2.9vw, 43px);
+      top: 9px;
+      display: flex;
+      align-items: center;
+      position: relative;
+    }
+
+    .nav a {
+      font-size: 16px;
+      font-weight: 430;
+      letter-spacing: -.36px;
+      color: rgba(229, 229, 230, .77);
+      text-shadow: 0 1px 3px rgba(0, 0, 0, .55);
+      text-decoration: none;
+      position: relative;
+      outline: none;
+      transition: color 140ms ease, filter 140ms ease;
+    }
+
+    .nav a:first-child {
+      top: -3px;
+    }
+
+    .nav a:nth-child(4) {
+      margin-left: 1px;
+    }
+
+    .nav a.active {
+      color: #ffffff;
+    }
+
+    .nav a.active::after {
+      content: "";
+      position: absolute;
+      bottom: -6px;
+      left: 0;
+      width: 44px;
+      height: 2px;
+      background: rgba(255, 255, 255, .82);
+    }
+
+    .nav a:hover,
+    button:hover,
+    a:hover {
+      filter: brightness(1.08);
+    }
+
+    .nav a:focus-visible,
+    button:focus-visible,
+    a:focus-visible {
+      outline: 2px solid #ffffff;
+      outline-offset: 3px;
+    }
+
+    /* Timezone Panel */
+    .time-panel {
+      margin-left: auto;
+      width: 211px;
+      height: 48px;
+      padding-left: 8px;
+      border-left: 2px solid rgba(230, 230, 230, .52);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+
+    .time-label {
+      font-size: 15px;
+      font-weight: 420;
+      color: rgba(240, 240, 240, .77);
+      line-height: 1.25;
+    }
+
+    .time-value {
+      font-size: 15px;
+      font-weight: 440;
+      color: rgba(255, 255, 255, .93);
+      line-height: 1.25;
+    }
+
+    /* Header Sign Up Pill Button */
+    .sign-up {
+      width: 109px;
+      height: 42px;
+      border-radius: 7px;
+      background: #ffffff;
+      color: #101010;
+      font-weight: 460;
+      letter-spacing: -.34px;
+      font-size: 16px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: clamp(20px, 1.95vw, 29px);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, .72), 0 1px 5px rgba(0, 0, 0, .34);
+      outline: none;
+      transition: filter 140ms ease, transform 140ms ease;
+    }
+
+    /* Menu Toggle (Hidden on desktop) */
+    .menu-toggle {
+      display: none;
+      background: transparent;
+      border: none;
+      outline: none;
+    }
+
+    /* ==========================================================================
+       HERO (Bottom-Left)
+       ========================================================================== */
+    .hero {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      pointer-events: none;
+    }
+
+    .hero-content {
+      position: absolute;
+      left: var(--gutter-start);
+      bottom: var(--hero-bottom);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      z-index: 5;
+      pointer-events: auto;
+    }
+
+    /* Headline (.hero-title) */
+    .hero-title {
+      font-family: "Reference Display", "Reference Sans", Arial, sans-serif;
+      font-weight: 500;
+      font-optical-sizing: auto;
+      letter-spacing: -2.1px;
+      -webkit-text-stroke: .12px currentColor;
+      white-space: nowrap;
+      text-shadow: 0 2px 2px rgba(0, 0, 0, .44);
+      font-size: var(--display-size);
+      line-height: var(--display-leading);
+      margin: 0 0 var(--title-copy-gap) 0;
+    }
+
+    .line {
+      display: block;
+      transform-origin: left center;
+    }
+
+    .line-one {
+      color: #ffffff;
+      transform: scaleX(.775);
+    }
+
+    .line-two {
+      color: rgba(211, 207, 207, .78);
+      transform: scaleX(.793);
+    }
+
+    .line-reveal {
+      display: inline-block;
+    }
+
+    /* Hero Body Copy */
+    .hero-copy {
+      color: rgba(226, 229, 228, .84);
+      font-weight: 350;
+      letter-spacing: .13px;
+      width: clamp(390px, 31.67vw, 500px);
+      position: relative;
+      left: 1px;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, .7);
+      font-size: var(--copy-size);
+      line-height: var(--copy-leading);
+      margin: 0 0 var(--copy-cta-gap) 0;
+    }
+
+    /* Primary CTA (White button, not glass) */
+    .primary-cta {
+      width: var(--cta-width);
+      height: var(--cta-height);
+      border-radius: 7px;
+      background: #ffffff;
+      color: #111111;
+      border: none;
+      cursor: pointer;
+      position: relative;
+      box-shadow: 0 1px 5px rgba(0, 0, 0, .38);
+      display: flex;
+      align-items: center;
+      outline: none;
+      transition: filter 140ms ease, transform 140ms ease;
+    }
+
+    .primary-cta .label {
+      position: absolute;
+      left: 8.125%;
+      font-size: var(--primary-control-font-size);
+      font-weight: 450;
+      letter-spacing: -.3px;
+      line-height: 1;
+      top: calc(50% + var(--control-baseline-shift) + var(--control-inline-nudge));
+      transform: translateY(-50%);
+    }
+
+    .primary-cta .arrow-box {
+      position: absolute;
+      right: 3.125%;
+      top: 14.286%;
+      width: 20.625%;
+      height: 71.429%;
+      border-radius: 7px;
+      background: #070909;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ==========================================================================
+       DEMO CARD (Bottom-Right Glass Card)
+       ========================================================================== */
+    .demo-card {
+      position: absolute;
+      right: var(--gutter-end);
+      bottom: var(--hero-bottom);
+      width: var(--card-width);
+      aspect-ratio: 201 / 265;
+      container-type: inline-size;
+      z-index: 5;
+      pointer-events: auto;
+
+      /* Glass look (exact) */
+      border: 1px solid rgba(255, 255, 255, .13);
+      border-radius: clamp(12px, 1.52vh, 18px);
+      background: linear-gradient(145deg, rgba(24, 22, 20, .80), rgba(5, 12, 14, .86));
+      box-shadow:
+        0 2px 10px rgba(0, 0, 0, .44),
+        0 0 0 3px rgba(255, 255, 255, .035) inset,
+        0 0 0 1px rgba(0, 0, 0, .9);
+      backdrop-filter: blur(14px) saturate(108%);
+      -webkit-backdrop-filter: blur(14px) saturate(108%);
+      overflow: hidden;
+    }
+
+    .demo-visual {
+      position: absolute;
+      left: 3.5cqw;
+      top: 4cqw;
+      width: 92.5cqw;
+      height: 92cqw;
+      border-radius: 4cqw;
+      background: #101a1e;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .demo-visual img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: brightness(.89) saturate(.93) contrast(1.03);
+      pointer-events: none;
+    }
+
+    .demo-visual .play {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 29cqw;
+      height: 29cqw;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, .34);
+      background: rgba(3, 5, 7, .47);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      outline: none;
+      transition: filter 140ms ease, transform 140ms ease;
+    }
+
+    .demo-visual .play svg {
+      margin-left: 2px;
+    }
+
+    .watch-button {
+      position: absolute;
+      left: 3.5cqw;
+      bottom: 4cqw;
+      width: 92.5cqw;
+      height: clamp(34px, 4.2vh, 42px);
+      border-radius: clamp(7px, 1vh, 10px);
+      border: 1px solid rgba(255, 255, 255, .21);
+      background: linear-gradient(145deg, rgba(26, 34, 36, .86), rgba(16, 29, 33, .9));
+      color: #ffffff;
+      font-size: var(--action-control-font-size);
+      font-weight: 430;
+      letter-spacing: -.2px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      outline: none;
+      transition: filter 140ms ease;
+    }
+
+    /* ==========================================================================
+       ENTRANCE MOTION (Exact Choreography & Timings)
+       ========================================================================== */
+    @keyframes entrance-brand {
+      from {
+        opacity: 0;
+        transform: translateY(7px) scale(0.94);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes entrance-nav {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes entrance-action {
+      from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.985);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes entrance-line {
+      from {
+        transform: translate3d(0, 110%, 0) skewY(2deg);
+      }
+      to {
+        transform: translate3d(0, 0, 0) skewY(0deg);
+      }
+    }
+
+    @keyframes entrance-copy {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes entrance-card {
+      from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.968);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    /* Rules while .motion-pending is active on <html> */
+    html.motion-pending .brand {
+      opacity: 0;
+      animation: entrance-brand 580ms cubic-bezier(.16,1,.3,1) 60ms forwards;
+    }
+
+    html.motion-pending .nav a:nth-child(1) {
+      opacity: 0;
+      animation: entrance-nav 480ms cubic-bezier(.16,1,.3,1) 130ms forwards;
+    }
+    html.motion-pending .nav a:nth-child(2) {
+      opacity: 0;
+      animation: entrance-nav 480ms cubic-bezier(.16,1,.3,1) 175ms forwards;
+    }
+    html.motion-pending .nav a:nth-child(3) {
+      opacity: 0;
+      animation: entrance-nav 480ms cubic-bezier(.16,1,.3,1) 220ms forwards;
+    }
+    html.motion-pending .nav a:nth-child(4) {
+      opacity: 0;
+      animation: entrance-nav 480ms cubic-bezier(.16,1,.3,1) 265ms forwards;
+    }
+
+    html.motion-pending .time-panel {
+      opacity: 0;
+      animation: entrance-nav 520ms cubic-bezier(.16,1,.3,1) 180ms forwards;
+    }
+
+    html.motion-pending .sign-up {
+      opacity: 0;
+      animation: entrance-action 520ms cubic-bezier(.16,1,.3,1) 220ms forwards;
+    }
+
+    html.motion-pending .menu-toggle {
+      opacity: 0;
+      animation: entrance-action 520ms cubic-bezier(.16,1,.3,1) 140ms forwards;
+    }
+
+    html.motion-pending .line {
+      overflow: hidden;
+    }
+
+    html.motion-pending .line-one .line-reveal {
+      transform: translate3d(0, 110%, 0) skewY(2deg);
+      animation: entrance-line 800ms cubic-bezier(.22,1,.36,1) 300ms forwards;
+    }
+
+    html.motion-pending .line-two .line-reveal {
+      transform: translate3d(0, 110%, 0) skewY(2deg);
+      animation: entrance-line 850ms cubic-bezier(.22,1,.36,1) 440ms forwards;
+    }
+
+    html.motion-pending .hero-copy {
+      opacity: 0;
+      animation: entrance-copy 620ms cubic-bezier(.16,1,.3,1) 740ms forwards;
+    }
+
+    html.motion-pending .primary-cta {
+      opacity: 0;
+      animation: entrance-action 560ms cubic-bezier(.16,1,.3,1) 960ms forwards;
+    }
+
+    html.motion-pending .demo-card {
+      opacity: 0;
+      transform-origin: 82% 50%;
+      animation: entrance-card 920ms cubic-bezier(.22,1,.36,1) 1040ms forwards;
+    }
+
+    /* ==========================================================================
+       RESPONSIVE BREAKPOINTS (Tablet & Mobile)
+       ========================================================================== */
+    @media (min-width: 620px) and (max-width: 790px), (min-width: 620px) and (max-width: 1100px) and (orientation: portrait) {
+      .header {
+        justify-content: space-between;
+      }
+      .menu-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 46px;
+        height: 46px;
+        border-radius: 11px;
+        border: 1px solid rgba(255,255,255,.16);
+        background: linear-gradient(145deg, rgba(24,22,20,.80), rgba(5,12,14,.86));
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        color: #ffffff;
+        cursor: pointer;
+        margin-left: auto;
+      }
+      .header-actions {
+        position: absolute;
+        top: 60px;
+        right: 0;
+        width: min(324px, calc(100vw - 2 * var(--gutter-end)));
+        flex-direction: column;
+        align-items: stretch;
+        gap: 20px;
+        padding: 24px;
+        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,.14);
+        background: linear-gradient(145deg, rgba(20,22,24,.92), rgba(6,12,14,.96));
+        backdrop-filter: blur(18px) saturate(110%);
+        -webkit-backdrop-filter: blur(18px) saturate(110%);
+        box-shadow: 0 16px 40px rgba(0,0,0,.6);
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-8px) scale(0.985);
+        transition: opacity 220ms cubic-bezier(.16,1,.3,1), transform 220ms cubic-bezier(.16,1,.3,1), visibility 220ms;
+        z-index: 50;
+      }
+      .header.menu-open .header-actions {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0) scale(1);
+      }
+      .nav {
+        flex-direction: column;
+        align-items: flex-start;
+        margin-left: 0;
+        gap: 16px;
+      }
+      .time-panel {
+        margin-left: 0;
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid rgba(255,255,255,.12);
+        padding-left: 0;
+        padding-top: 12px;
+        height: auto;
+      }
+      .sign-up {
+        margin-left: 0;
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 619px) {
+      .screen {
+        --gutter-start: 24px;
+        --gutter-end: 24px;
+        --hero-bottom: 30px;
+        --display-size: clamp(38px, 6.5vh, 52px);
+        --display-leading: clamp(46px, 7.8vh, 62px);
+      }
+      .hero-title {
+        letter-spacing: -1.2px;
+      }
+      .line-one {
+        transform: scaleX(.78);
+      }
+      .line-two {
+        transform: scaleX(.55);
+      }
+      .hero-copy br {
+        display: none;
+      }
+      .hero-copy {
+        width: 100%;
+        max-width: 320px;
+      }
+      .demo-card {
+        top: clamp(176px, 32svh, 300px);
+        bottom: auto;
+        right: var(--gutter-end);
+        width: clamp(120px, 16vh, 160px);
+      }
+      .menu-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        border-radius: 11px;
+        border: 1px solid rgba(255,255,255,.16);
+        background: linear-gradient(145deg, rgba(24,22,20,.80), rgba(5,12,14,.86));
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        color: #ffffff;
+        cursor: pointer;
+        margin-left: auto;
+      }
+      .header-actions {
+        position: absolute;
+        top: 56px;
+        right: 0;
+        width: min(340px, calc(100vw - 48px));
+        flex-direction: column;
+        align-items: stretch;
+        gap: 18px;
+        padding: 20px;
+        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,.14);
+        background: linear-gradient(145deg, rgba(20,22,24,.92), rgba(6,12,14,.96));
+        backdrop-filter: blur(18px) saturate(110%);
+        -webkit-backdrop-filter: blur(18px) saturate(110%);
+        box-shadow: 0 16px 40px rgba(0,0,0,.6);
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-8px) scale(0.985);
+        transition: opacity 220ms cubic-bezier(.16,1,.3,1), transform 220ms cubic-bezier(.16,1,.3,1), visibility 220ms;
+        z-index: 50;
+      }
+      .header.menu-open .header-actions {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0) scale(1);
+      }
+      .nav {
+        flex-direction: column;
+        align-items: flex-start;
+        margin-left: 0;
+        gap: 14px;
+      }
+      .time-panel {
+        margin-left: 0;
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid rgba(255,255,255,.12);
+        padding-left: 0;
+        padding-top: 10px;
+        height: auto;
+      }
+      .sign-up {
+        margin-left: 0;
+        width: 100%;
+      }
+    }
+
+    /* Menu morph icon styles */
+    .hamburger-icon line {
+      transition: transform 200ms cubic-bezier(.16,1,.3,1), stroke 200ms;
+      transform-origin: center;
+    }
+    .header.menu-open .hamburger-icon .line-top {
+      transform: translateY(4px) rotate(45deg);
+    }
+    .header.menu-open .hamburger-icon .line-bottom {
+      transform: translateY(-4px) rotate(-45deg);
+    }
+
+    /* ==========================================================================
+       GLASS MODALS (Chat Copilot & Interactive Demo Theater)
+       ========================================================================== */
+    .vantage-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 240ms cubic-bezier(.16,1,.3,1), visibility 240ms;
+    }
+    .vantage-modal.open {
+      opacity: 1;
+      visibility: visible;
+    }
+    .vantage-modal-card {
+      width: 100%;
+      max-width: 640px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, .16);
+      background: linear-gradient(145deg, rgba(20, 24, 26, .92), rgba(6, 12, 14, .96));
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .8), 0 0 0 1px rgba(255, 255, 255, .05) inset;
+      padding: 24px;
+      color: #ffffff;
+      transform: translateY(12px) scale(0.98);
+      transition: transform 240ms cubic-bezier(.16,1,.3,1);
+    }
+    .vantage-modal.open .vantage-modal-card {
+      transform: translateY(0) scale(1);
+    }
+
+    /* Modal header */
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,.1);
+      padding-bottom: 16px;
+      margin-bottom: 16px;
+    }
+    .modal-title {
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: -.2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,.6);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-close:hover {
+      color: #fff;
+      background: rgba(255,255,255,.1);
+    }
+
+    /* Chat stream */
+    .chat-stream {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-height: 280px;
+      overflow-y: auto;
+      padding-right: 4px;
+      margin-bottom: 16px;
+    }
+    .chat-stream::-webkit-scrollbar {
+      width: 4px;
+    }
+    .chat-stream::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,.2);
+      border-radius: 4px;
+    }
+    .bubble {
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 13.5px;
+      line-height: 1.45;
+      max-width: 88%;
+    }
+    .bubble.ai {
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.1);
+      color: rgba(240,240,240,.92);
+      align-self: flex-start;
+    }
+    .bubble.user {
+      background: #ffffff;
+      color: #101010;
+      align-self: flex-end;
+      font-weight: 450;
+    }
+
+    /* Chat input */
+    .chat-input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 12px;
+      padding: 4px 6px 4px 14px;
+    }
+    .chat-input-row input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .chat-send-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #000000;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Query chips */
+    .query-chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .chip {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 20px;
+      padding: 4px 10px;
+      font-size: 11px;
+      color: rgba(255,255,255,.75);
+      cursor: pointer;
+      transition: background 140ms;
+    }
+    .chip:hover {
+      background: rgba(255,255,255,.12);
+      color: #fff;
+    }
+
+    /* Video player container */
+    .video-theater {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #000;
+      border: 1px solid rgba(255,255,255,.15);
+    }
+    .video-theater video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- ==========================================================================
+       MAIN VIEWPORT & SCREEN
+       ========================================================================== -->
+  <main class="viewport">
+    <section class="screen" id="screen">
+      
+      <!-- Exact Mandatory CloudFront Background Video -->
+      <video class="background" autoplay muted loop playsinline disablepictureinpicture aria-hidden="true">
+        <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260808_064556_051587f1-74a1-4336-8c05-4dde3594ed05.mp4" type="video/mp4">
+      </video>
+
+      <!-- ======================================================================
+           HEADER
+           ====================================================================== -->
+      <header class="header">
+        
+        <!-- 1. Brand Logo: 25x25 SVG Disc -->
+        <a href="#home" class="brand" aria-label="Vantage home">
+          <svg width="25" height="25" viewBox="0 0 25 25" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <clipPath id="brand-disc">
+              <circle cx="12.5" cy="12.5" r="12.5" />
+            </clipPath>
+            <g clip-path="url(#brand-disc)">
+              <rect width="25" height="25" fill="#ededed" />
+              <path d="M12.5 0L25 12.5L12.5 25L0 12.5Z" fill="#737778" />
+              <path d="M12.5 2.5L22.5 12.5L12.5 22.5L2.5 12.5Z" fill="#050606" />
+              <path d="M12.5 5L20 12.5L12.5 20L5 12.5Z" fill="#0a0b0b" />
+              <path d="M12.5 7L18 12.5L12.5 18L7 12.5Z" fill="#fafafa" />
+              <path d="M12.5 9L16 12.5L12.5 16L9 12.5Z" fill="#050606" />
+            </g>
+          </svg>
+        </a>
+
+        <!-- 2. Header Actions (Nav, Time, Sign Up) -->
+        <div class="header-actions" id="tablet-navigation">
+          
+          <nav class="nav" aria-label="Primary navigation">
+            <a href="#home" class="active">Home</a>
+            <a href="#about">About</a>
+            <a href="#services">Services</a>
+            <a href="#contact">Contact</a>
+          </nav>
+
+          <!-- 3. Time Panel -->
+          <div class="time-panel">
+            <div class="time-label">Timezone</div>
+            <div class="time-value">9:47 PM&nbsp; • &nbsp;14 July 2026</div>
+          </div>
+
+          <!-- 4. Sign Up Pill Button -->
+          <button class="sign-up" type="button" id="sign-up-btn">Sign Up</button>
+        </div>
+
+        <!-- 5. Menu Toggle (Visible only on mobile/tablet) -->
+        <button class="menu-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="tablet-navigation" id="menu-toggle-btn">
+          <svg class="hamburger-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <line class="line-top" x1="3" y1="6" x2="17" y2="6" />
+            <line class="line-bottom" x1="3" y1="14" x2="17" y2="14" />
+          </svg>
+        </button>
+      </header>
+
+      <!-- ======================================================================
+           HERO SECTION
+           ====================================================================== -->
+      <section class="hero">
+        
+        <!-- Hero Content (Bottom-Left) -->
+        <div class="hero-content">
+          
+          <!-- Headline (Exact two lines with optical transforms) -->
+          <h1 class="hero-title">
+            <span class="line line-one"><span class="line-reveal">Stop Digging</span></span>
+            <span class="line line-two"><span class="line-reveal">Through Dashboards.</span></span>
+          </h1>
+
+          <!-- Body Copy (Exact wording, typo "bring", and 3 line breaks) -->
+          <p class="hero-copy">
+            Your metrics are scattered across a dozen dashboards.<br>
+            Vantage bring them into one clear signal, so every<br>
+            decision is backed by data you actually trust.
+          </p>
+
+          <!-- Primary CTA (White button with dark arrow box) -->
+          <button class="primary-cta" type="button" id="primary-cta-btn">
+            <span class="label">Get Started</span>
+            <span class="arrow-box">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 7h8M8 3.5l3.5 3.5-3.5 3.5" />
+              </svg>
+            </span>
+          </button>
+        </div>
+
+        <!-- Demo Card (Bottom-Right Glass Card) -->
+        <article class="demo-card">
+          <div class="demo-visual">
+            <img src="assets/watch-demo-thumbnail.png" alt="Abstract red and blue smoke" id="demo-thumbnail-img" />
+            <button class="play" type="button" aria-label="Play demo" id="play-demo-btn">
+              <svg width="14" height="16" viewBox="0 0 14 16" fill="#ffffff">
+                <path d="M1 1.5L13 8L1 14.5Z" />
+              </svg>
+            </button>
+          </div>
+          <button class="watch-button" type="button" id="watch-demo-btn">Watch Demo</button>
+        </article>
+
+      </section>
+    </section>
+  </main>
+
+  <!-- ==========================================================================
+       VANTAGE CHAT & INTELLIGENCE MODAL (Exact Vantage Glass Style)
+       ========================================================================== -->
+  <div class="vantage-modal" id="chat-modal" aria-hidden="true" role="dialog">
+    <div class="vantage-modal-card">
+      <div class="modal-head">
+        <div class="modal-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+          <span>Vantage Signal Copilot</span>
+          <span style="font-size: 11px; color: #4ade80; background: rgba(74,222,128,.15); padding: 2px 8px; border-radius: 12px; margin-left: 6px;">
+            ● 12 Sources Unified
+          </span>
+        </div>
+        <button class="modal-close" id="close-chat-modal" aria-label="Close modal">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="query-chips">
+        <span class="chip" onclick="askVantage('Synthesize Q3 revenue anomalies across Stripe & Mixpanel')">Synthesize Q3 revenue</span>
+        <span class="chip" onclick="askVantage('Which marketing channel has lowest CAC this week?')">Compare CAC by channel</span>
+        <span class="chip" onclick="askVantage('What is our actual unified churn rate?')">Unified Churn Rate</span>
+      </div>
+
+      <div class="chat-stream" id="chat-stream">
+        <div class="bubble ai">
+          Welcome to Vantage. Your analytics, payment gateways, and ad channels are connected. What metric would you like to inspect?
+        </div>
+      </div>
+
+      <form class="chat-input-row" id="chat-form" onsubmit="event.preventDefault(); sendQuery();">
+        <input type="text" id="chat-input" placeholder="Ask about metrics, anomalies, or signals..." autocomplete="off" />
+        <button type="submit" class="chat-send-btn" aria-label="Send">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       DEMO VIDEO MODAL (Exact Vantage Glass Style)
+       ========================================================================== -->
+  <div class="vantage-modal" id="video-modal" aria-hidden="true" role="dialog">
+    <div class="vantage-modal-card" style="max-width: 840px;">
+      <div class="modal-head">
+        <div class="modal-title">
+          <span>Vantage — Unified Signal Demo</span>
+        </div>
+        <button class="modal-close" id="close-video-modal" aria-label="Close video">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="video-theater">
+        <video id="theater-video" controls playsinline>
+          <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260808_064556_051587f1-74a1-4336-8c05-4dde3594ed05.mp4" type="video/mp4">
+        </video>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       INLINE JAVASCRIPT
+       ========================================================================== -->
+  <script>
+    (function() {
+      // 1. Entrance animation completion listener
+      var demoCard = document.querySelector('.demo-card');
+      if (demoCard) {
+        demoCard.addEventListener('animationend', function(e) {
+          if (e.target === demoCard) {
+            document.documentElement.classList.remove('motion-pending');
+            if (window.__motionFallback) clearTimeout(window.__motionFallback);
+          }
+        });
+      }
+
+      // 2. Mobile / Tablet Menu Toggle
+      var header = document.querySelector('.header');
+      var menuToggle = document.getElementById('menu-toggle-btn');
+      var tabletNav = document.getElementById('tablet-navigation');
+
+      if (menuToggle && header && tabletNav) {
+        menuToggle.addEventListener('click', function() {
+          var isOpen = header.classList.toggle('menu-open');
+          menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+          if (isOpen) {
+            tabletNav.removeAttribute('inert');
+            var firstLink = tabletNav.querySelector('a');
+            if (firstLink) firstLink.focus();
+          } else {
+            tabletNav.setAttribute('inert', '');
+          }
+        });
+
+        // Close when clicking outside
+        document.addEventListener('pointerdown', function(e) {
+          if (header.classList.contains('menu-open') && !header.contains(e.target)) {
+            header.classList.remove('menu-open');
+            menuToggle.setAttribute('aria-expanded', 'false');
+            tabletNav.setAttribute('inert', '');
+          }
+        });
+
+        // Close on escape key
+        document.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape' && header.classList.contains('menu-open')) {
+            header.classList.remove('menu-open');
+            menuToggle.setAttribute('aria-expanded', 'false');
+            tabletNav.setAttribute('inert', '');
+            menuToggle.focus();
+          }
+        });
+      }
+
+      // 3. Fallback for thumbnail image
+      var thumbImg = document.getElementById('demo-thumbnail-img');
+      if (thumbImg) {
+        thumbImg.onerror = function() {
+          thumbImg.src = 'assets/watch-demo-thumbnail.svg';
+        };
+      }
+
+      // 4. Chat Modal Integration
+      var chatModal = document.getElementById('chat-modal');
+      var openChatBtns = [
+        document.getElementById('primary-cta-btn'),
+        document.getElementById('sign-up-btn')
+      ];
+      var closeChatBtn = document.getElementById('close-chat-modal');
+
+      openChatBtns.forEach(function(btn) {
+        if (btn) {
+          btn.addEventListener('click', function() {
+            chatModal.classList.add('open');
+            chatModal.setAttribute('aria-hidden', 'false');
+            document.getElementById('chat-input').focus();
+          });
+        }
+      });
+
+      if (closeChatBtn) {
+        closeChatBtn.addEventListener('click', function() {
+          chatModal.classList.remove('open');
+          chatModal.setAttribute('aria-hidden', 'true');
+        });
+      }
+
+      // 5. Video Theater Modal Integration
+      var videoModal = document.getElementById('video-modal');
+      var playDemoBtns = [
+        document.getElementById('play-demo-btn'),
+        document.getElementById('watch-demo-btn')
+      ];
+      var closeVideoBtn = document.getElementById('close-video-modal');
+      var theaterVideo = document.getElementById('theater-video');
+
+      playDemoBtns.forEach(function(btn) {
+        if (btn) {
+          btn.addEventListener('click', function() {
+            videoModal.classList.add('open');
+            videoModal.setAttribute('aria-hidden', 'false');
+            if (theaterVideo) {
+              theaterVideo.currentTime = 0;
+              theaterVideo.play();
+            }
+          });
+        }
+      });
+
+      if (closeVideoBtn) {
+        closeVideoBtn.addEventListener('click', function() {
+          videoModal.classList.remove('open');
+          videoModal.setAttribute('aria-hidden', 'true');
+          if (theaterVideo) theaterVideo.pause();
+        });
+      }
+
+      // Close modals on backdrop click or ESC
+      [chatModal, videoModal].forEach(function(modal) {
+        if (modal) {
+          modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+              modal.classList.remove('open');
+              modal.setAttribute('aria-hidden', 'true');
+              if (theaterVideo) theaterVideo.pause();
+            }
+          });
+        }
+      });
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          if (chatModal.classList.contains('open')) {
+            chatModal.classList.remove('open');
+            chatModal.setAttribute('aria-hidden', 'true');
+          }
+          if (videoModal.classList.contains('open')) {
+            videoModal.classList.remove('open');
+            videoModal.setAttribute('aria-hidden', 'true');
+            if (theaterVideo) theaterVideo.pause();
+          }
+        }
+        // Shortcut: Cmd/Ctrl + K opens Vantage Copilot
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+          e.preventDefault();
+          chatModal.classList.toggle('open');
+          if (chatModal.classList.contains('open')) {
+            document.getElementById('chat-input').focus();
+          }
+        }
+      });
+    })();
+
+    // Interactive Chat Logic
+    function askVantage(text) {
+      document.getElementById('chat-input').value = text;
+      sendQuery();
+    }
+
+    function sendQuery() {
+      var input = document.getElementById('chat-input');
+      var query = input.value.trim();
+      if (!query) return;
+
+      var stream = document.getElementById('chat-stream');
+
+      // Add user message
+      var userBubble = document.createElement('div');
+      userBubble.className = 'bubble user';
+      userBubble.textContent = query;
+      stream.appendChild(userBubble);
+      input.value = '';
+      stream.scrollTop = stream.scrollHeight;
+
+      // Simulated AI response
+      setTimeout(function() {
+        var aiBubble = document.createElement('div');
+        aiBubble.className = 'bubble ai';
+
+        var lower = query.toLowerCase();
+        if (lower.includes('cac') || lower.includes('marketing')) {
+          aiBubble.innerHTML = '<strong>Vantage Signal:</strong> Blended CAC dropped 14.2% to $42.10 across unified channels. Paid Search is driving highest ROAS at 3.8x, while Social CAC peaked Tuesday.';
+        } else if (lower.includes('revenue') || lower.includes('q3')) {
+          aiBubble.innerHTML = '<strong>Vantage Signal:</strong> Net Q3 ARR is tracking at $1.42M (+18% YoY). Stripe churn rate is 0.8% with zero uncaptured payment webhook failures.';
+        } else if (lower.includes('churn') || lower.includes('retention')) {
+          aiBubble.innerHTML = '<strong>Vantage Signal:</strong> Unified retention curve flattened at 84% at Day 90. Cohort retention improved 6.4% after the new onboarding workflow.';
+        } else {
+          aiBubble.innerHTML = '<strong>Vantage Signal:</strong> 12 connected data streams synthesized with 99.98% confidence. All signals verified against primary transaction logs.';
+        }
+
+        stream.appendChild(aiBubble);
+        stream.scrollTop = stream.scrollHeight;
+      }, 450);
+    }
+  </script>
+</body>
+</html>

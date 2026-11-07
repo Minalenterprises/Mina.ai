@@ -1,0 +1,8 @@
+{
+  "Sans": ["Inter", "Roboto", "Open Sans", "Lato", "Montserrat", "Poppins", "Nunito", "Nunito Sans", "Raleway", "Work Sans", "DM Sans", "Manrope", "Plus Jakarta Sans", "Outfit", "Urbanist", "Rubik", "Mulish", "Quicksand", "Source Sans 3", "IBM Plex Sans", "Noto Sans", "Figtree", "Karla", "Barlow", "Assistant", "Heebo", "Archivo", "Space Grotesk", "Sora", "Lexend", "Hind", "Josefin Sans", "Exo 2", "Cabin"],
+  "Serif": ["Playfair Display", "Merriweather", "Lora", "Libre Baskerville", "Cormorant Garamond", "EB Garamond", "Crimson Text", "Libre Caslon Text", "Source Serif 4", "Noto Serif", "Spectral", "Bitter", "Domine", "Arvo", "Alegreya", "Vollkorn", "Cardo", "PT Serif"],
+  "Display": ["Oswald", "Anton", "Bebas Neue", "Barlow Condensed", "Roboto Slab", "Abril Fatface", "Righteous", "Cinzel"],
+  "Mono": ["IBM Plex Mono", "Roboto Mono", "Source Code Pro", "Space Mono", "Inconsolata", "Ubuntu Mono"],
+  "Handwritten": ["Dancing Script", "Caveat", "Pacifico", "Lobster"],
+  "Arabic & Urdu": ["Noto Sans Arabic", "Noto Nastaliq Urdu"]
+}

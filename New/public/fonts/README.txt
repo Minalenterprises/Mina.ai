@@ -1,0 +1,1 @@
+Fonts distributed under their individually bundled licenses (SIL OFL, Apache, or Ubuntu Font License). Sources: Google Fonts CSS API and github.com/google/fonts. Font data is served locally and loaded on demand.

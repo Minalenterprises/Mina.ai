@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #F6F5F1;
+  --color-ink: #141412;
+  --color-smoke: #8A8A86;
+  --color-lime: #C6F24E;
+  --color-kraft: #C9A074;
+  --color-line: rgba(20, 20, 18, 0.12);
+  --font-display: var(--font-space), system-ui, sans-serif;
+  --font-mono: var(--font-plex), ui-monospace, monospace;
+}
+
+html {
+  scroll-behavior: auto;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+::selection {
+  background: var(--color-lime);
+  color: var(--color-ink);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(20, 20, 18, 0.25) transparent;
+}
+*::-webkit-scrollbar { width: 5px; height: 5px; }
+*::-webkit-scrollbar-thumb { background: rgba(20, 20, 18, 0.25); border-radius: 99px; }
+
+.hairline { border-color: var(--color-line); }
+
+.font-mono-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* ————— buttons ————— */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  padding: 12px 22px; border-radius: 999px;
+  border: 1px solid var(--color-ink);
+  transition: all .35s cubic-bezier(.6,.05,.15,1);
+  cursor: pointer; user-select: none; white-space: nowrap;
+}
+.btn-ink { background: var(--color-ink); color: var(--color-paper); }
+.btn-ink:hover { background: var(--color-lime); color: var(--color-ink); border-color: var(--color-lime); }
+.btn-line { background: transparent; color: var(--color-ink); }
+.btn-line:hover { background: var(--color-ink); color: var(--color-paper); }
+.btn-lime { background: var(--color-lime); color: var(--color-ink); border-color: var(--color-lime); }
+.btn-lime:hover { background: var(--color-ink); color: var(--color-lime); border-color: var(--color-ink); }
+.btn[disabled] { opacity: .4; pointer-events: none; }
+
+.chip {
+  padding: 8px 16px; border: 1px solid var(--color-line); border-radius: 999px;
+  font-size: 13px; line-height: 1; transition: all .3s cubic-bezier(.6,.05,.15,1);
+  cursor: pointer; background: transparent; white-space: nowrap;
+}
+.chip:hover { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); transform: translateY(-1px); }
+
+/* ————— marquee ————— */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: flex; width: max-content;
+  animation: marquee 22s linear infinite;
+}
+
+/* ————— reveal ————— */
+.reveal-line {
+  display: block; overflow: hidden;
+}
+.reveal-inner {
+  display: block;
+  transform: translateY(115%) rotate(2.5deg);
+  transform-origin: left top;
+  transition: transform 1s cubic-bezier(.2,.75,.15,1);
+  will-change: transform;
+}
+.reveal-on .reveal-inner {
+  transform: translateY(0) rotate(0deg);
+}
+
+.fade-up {
+  opacity: 0; transform: translateY(24px);
+  transition: opacity .9s ease, transform .9s cubic-bezier(.2,.75,.15,1);
+}
+.fade-up.on { opacity: 1; transform: translateY(0); }
+
+/* ————— misc ————— */
+.text-stroke {
+  -webkit-text-stroke: 1px var(--color-paper);
+  color: transparent;
+}
+.text-stroke-ink {
+  -webkit-text-stroke: 1.5px var(--color-ink);
+  color: transparent;
+}
+@keyframes floaty {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.6); opacity: .5; }
+}
+.pulse-dot { animation: pulse-dot 1.4s ease infinite; }
+
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(12px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.msg-in { animation: msg-in .45s cubic-bezier(.2,.75,.15,1) both; }
+
+@keyframes typing-blink {
+  0%, 80%, 100% { opacity: .25; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-3px); }
+}
+.typing-dot { animation: typing-blink 1.2s ease infinite; }
+
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+
+input[type="range"].fold-slider {
+  -webkit-appearance: none; appearance: none;
+  height: 2px; background: var(--color-line); border-radius: 99px; outline: none;
+}
+input[type="range"].fold-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 18px; height: 18px; border-radius: 99px;
+  background: var(--color-lime); border: 2px solid var(--color-ink);
+  cursor: grab;
+}
