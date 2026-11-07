@@ -2604,13 +2604,13 @@ html[data-theme='dark'] .composer { box-shadow: 0 1px 0 rgba(255,255,255,.04) in
 .sx-recent-card small { font-size: 12px; color: var(--ink-mute) }
 
 /* Studio — entrance choreography */
-.sx:not(.sx-blank) .sx-bar { animation: sx-drop .7s cubic-bezier(.22,1,.36,1) both }
-.sx:not(.sx-blank) .studio-chat { animation: sx-from-left .9s .1s cubic-bezier(.22,1,.36,1) both }
-.sx:not(.sx-blank) .design-preview { animation: sx-zoom 1.1s .2s cubic-bezier(.22,1,.36,1) both }
-.sx:not(.sx-blank) .sx-dock { animation: sx-dock-in .9s .45s cubic-bezier(.22,1,.36,1) both }
-.sx:not(.sx-blank) .sx-dock button { animation: sx-rise .6s cubic-bezier(.22,1,.36,1) both }
+.sx.sx-enter .sx-bar { animation: sx-drop .7s cubic-bezier(.22,1,.36,1) both }
+.sx.sx-enter .studio-chat { animation: sx-from-left .9s .1s cubic-bezier(.22,1,.36,1) both }
+.sx.sx-enter .design-preview { animation: sx-zoom 1.1s .2s cubic-bezier(.22,1,.36,1) both }
+.sx.sx-enter .sx-dock { animation: sx-dock-in .9s .45s cubic-bezier(.22,1,.36,1) both }
+.sx.sx-enter .sx-dock button { animation: sx-rise .6s cubic-bezier(.22,1,.36,1) both }
 .sx-dock button:nth-child(1) { animation-delay: .55s } .sx-dock button:nth-child(2) { animation-delay: .6s } .sx-dock button:nth-child(3) { animation-delay: .65s } .sx-dock button:nth-child(4) { animation-delay: .7s } .sx-dock button:nth-child(5) { animation-delay: .75s } .sx-dock button:nth-child(6) { animation-delay: .8s }
-.sx:not(.sx-blank) .studio-message { animation: sx-rise .6s .5s cubic-bezier(.22,1,.36,1) both }
+.sx.sx-enter .studio-message { animation: sx-rise .6s .5s cubic-bezier(.22,1,.36,1) both }
 @keyframes sx-drop { from { opacity: 0; transform: translateY(-100%) } }
 @keyframes sx-from-left { from { opacity: 0; transform: translateX(-40px) } }
 @keyframes sx-zoom { from { opacity: 0; transform: scale(.96); filter: blur(12px) } }
@@ -2677,3 +2677,80 @@ html[data-theme='dark'] .composer { box-shadow: 0 1px 0 rgba(255,255,255,.04) in
 @media (max-width: 640px) { .bp-hint { display: none } .bp-row { justify-content: space-between } }
 @media (prefers-reduced-motion: reduce) { .bp-field i { animation: none } }
 body:has(.bp) .launcher-label { display: none }
+
+/* ═══ Build view ═══ */
+.sx-under > :not(.bv) { opacity: 0 !important; pointer-events: none !important }
+.sx-under { overflow: hidden; height: 100vh }
+.bv { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; background: var(--bg); color: var(--ink); isolation: isolate; overflow: hidden }
+.bv-top { display: flex; align-items: center; justify-content: space-between; padding: 20px 26px; position: relative; z-index: 2 }
+.bv-name { font: 600 14px 'Plus Jakarta Sans', sans-serif; color: var(--ink-soft) }
+.bv-state { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--ink-soft); background: color-mix(in srgb, var(--surface) 60%, transparent); backdrop-filter: blur(12px); border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); font-variant-numeric: tabular-nums }
+.bv-state i { width: 6px; height: 6px; border-radius: 1px; background: var(--blue) }
+.bv-state.busy i { animation: sx-pulse .8s steps(2) infinite }
+.bv-state.error i { background: #d64545 }
+
+.bv-build { flex: 1; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, .75fr); gap: 4vw; align-items: center; padding: 0 6vw 140px; max-width: 1400px; width: 100%; margin: 0 auto }
+.bv-stage { position: relative; aspect-ratio: 4/3; border-radius: 32px; overflow: hidden; background: color-mix(in srgb, var(--surface) 55%, transparent); backdrop-filter: blur(20px); border: 1px solid color-mix(in srgb, var(--surface) 50%, var(--line)); box-shadow: 0 40px 100px -50px rgba(20,50,120,.45) }
+.bv-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: filter .6s linear, transform .8s cubic-bezier(.22,1,.36,1) }
+.bv-scan { position: absolute; left: 0; right: 0; height: 40%; top: -40%; background: linear-gradient(transparent, color-mix(in srgb, var(--blue) 10%, transparent) 80%, color-mix(in srgb, var(--blue) 60%, transparent)); animation: bv-scan 3s cubic-bezier(.6,0,.3,1) infinite; mix-blend-mode: multiply }
+[data-theme='dark'] .bv-scan { mix-blend-mode: screen }
+@keyframes bv-scan { to { top: 100% } }
+.bv-grid { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: repeat(8, 1fr); pointer-events: none }
+.bv-grid i { border: .5px solid color-mix(in srgb, var(--blue) 4%, transparent); animation: bv-cell 2.4s steps(1) infinite }
+@keyframes bv-cell { 0%, 88%, 100% { background: transparent } 90% { background: color-mix(in srgb, var(--blue) 7%, transparent) } }
+.bv-pct { position: absolute; left: 26px; bottom: 18px; font: 400 64px/1 'Instrument Serif', serif; letter-spacing: -.03em; color: var(--ink); font-variant-numeric: tabular-nums }
+.bv-pct small { font-size: 26px; color: var(--ink-mute) }
+
+.bv-side { position: relative; display: flex; flex-direction: column; gap: 22px; min-height: 340px }
+.bv-prompt { margin: 0; font: 400 28px/1.15 'Instrument Serif', serif; letter-spacing: -.01em; color: var(--ink) }
+.bv-steps { display: flex; flex-direction: column; gap: 4px }
+.bv-step { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 12px; font-size: 14px; color: var(--ink-soft) }
+.bv-step.done { color: var(--ink) }
+.bv-step.live { color: var(--ink-mute) }
+.bv-tick { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; flex: 0 0 20px; background: var(--surface-2); color: #fff }
+.bv-step.done .bv-tick { background: var(--blue) }
+.bv-step.err .bv-tick { background: #d64545 }
+.bv-tick b { width: 6px; height: 6px; border-radius: 1px; background: var(--blue); animation: sx-pulse .7s steps(2) infinite }
+.bv-shimmer { background: linear-gradient(90deg, var(--ink-mute) 30%, var(--ink) 50%, var(--ink-mute) 70%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: bv-shim 1.8s linear infinite }
+@keyframes bv-shim { from { background-position: 100% 0 } to { background-position: -100% 0 } }
+.bv-cursor { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 3 }
+.bv-cursor svg { filter: drop-shadow(0 4px 8px rgba(0,0,0,.18)) }
+.bv-cursor em { position: absolute; left: 18px; top: 18px; font-style: normal; font-size: 11px; font-weight: 700; color: #fff; background: var(--blue); padding: 3px 8px; border-radius: 999px 999px 999px 4px; white-space: nowrap }
+.bv-click { position: absolute; left: 0; top: 0; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; border: 2px solid var(--blue); animation: bv-click .6s ease-out forwards }
+@keyframes bv-click { from { transform: scale(.2); opacity: 1 } to { transform: scale(1.6); opacity: 0 } }
+
+.bv-gallery { flex: 1; display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 14px; padding: 0 6vw 150px; max-width: 1400px; width: 100%; margin: 0 auto; min-height: 0 }
+.bv-shot { position: relative; border-radius: 24px; overflow: hidden; background: color-mix(in srgb, var(--surface) 60%, transparent); border: 1px solid color-mix(in srgb, var(--surface) 50%, var(--line)); cursor: zoom-in; min-height: 0 }
+.bv-shot.hero { grid-row: 1 / span 3 }
+.bv-shot img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 1.2s cubic-bezier(.22,1,.36,1) }
+.bv-shot:hover img { transform: scale(1.04) }
+.bv-shot span { position: absolute; left: 14px; bottom: 12px; font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--ink-soft); background: color-mix(in srgb, var(--surface) 75%, transparent); backdrop-filter: blur(10px); padding: 5px 10px; border-radius: 999px }
+.bv-shot svg { position: absolute; right: 14px; top: 14px; color: var(--ink-soft); opacity: 0; transition: opacity .3s }
+.bv-shot:hover svg { opacity: 1 }
+.bv-actions { position: absolute; left: 50%; bottom: 104px; transform: translateX(-50%); display: flex; gap: 10px; z-index: 3 }
+.bv-primary { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 22px; border-radius: 999px; background: var(--ink); color: var(--bg); font-weight: 600; font-size: 14px; transition: transform .3s cubic-bezier(.22,1,.36,1), background .2s }
+.bv-primary:hover { transform: translateY(-2px); background: var(--blue); color: #fff }
+.bv-ghost { height: 44px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-soft); font-weight: 600; font-size: 14px }
+.bv-error { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 20px 160px; gap: 10px }
+.bv-error h2 { margin: 0; font: 400 46px 'Instrument Serif', serif }
+.bv-error p { margin: 0 0 14px; color: var(--ink-soft); max-width: 46ch }
+.bv-error .bv-actions { position: static; transform: none }
+
+.bv-bar { position: absolute; left: 0; right: 0; bottom: 26px; margin: 0 auto; width: min(680px, 90vw); display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 20px; border-radius: 22px; background: color-mix(in srgb, var(--surface) 75%, transparent); backdrop-filter: blur(24px) saturate(1.3); -webkit-backdrop-filter: blur(24px) saturate(1.3); border: 1px solid color-mix(in srgb, var(--surface) 60%, var(--line)); box-shadow: 0 24px 60px -30px rgba(20,50,120,.45); z-index: 4 }
+.bv-bar input { flex: 1; height: 40px; border: 0; outline: 0; background: transparent; font-size: 15px; color: var(--ink) }
+.bv-bar input::placeholder { color: var(--ink-mute) }
+.bv-send { width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center; background: var(--ink); color: var(--bg); transition: opacity .2s, background .2s }
+.bv-send:disabled { opacity: .2 }
+.bv-send.stop span { width: 12px; height: 12px; border-radius: 3px; background: currentColor }
+.bv-lightbox { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 5vw; background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(30px); cursor: zoom-out }
+.bv-lightbox img { max-width: 100%; max-height: 100%; border-radius: 24px; box-shadow: 0 40px 100px -40px rgba(0,0,0,.5) }
+@media (max-width: 900px) { .bv-build { grid-template-columns: 1fr; padding-bottom: 120px; overflow: auto } .bv-side { min-height: 0 } .bv-gallery { grid-template-columns: 1fr 1fr; grid-template-rows: 2fr 1fr 1fr } .bv-shot.hero { grid-row: auto; grid-column: 1 / -1 } }
+.sx .studio-message { display: flex !important; grid-template-columns: none !important }
+.sx .message-assistant > div { flex: 1 1 auto; max-width: 100% }
+.sx .message-user { justify-content: flex-end }
+.sx .message-user > div { max-width: 85% }
+.bv-shot img { object-fit: contain }
+.bv-gallery { padding-bottom: 170px }
+.bv-actions { bottom: 106px }
+.bv-shot { display: block; padding: 0; width: 100%; height: 100% }
+.bv-shot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 4%; box-sizing: border-box }
