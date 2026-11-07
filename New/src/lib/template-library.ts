@@ -1,6 +1,7 @@
 import type { Design, MaterialPreset, Surface, Template, Typography } from './types'
 import { isShapeId, shapeInfo } from './shapes'
-import { getArtwork, PRINT_STARTERS } from './print-artwork'
+import { getArtwork } from './print-artwork'
+import { clonePrint, findPrint } from './print-library'
 
 /**
  * Template library and style presets. Kept out of `types.ts` so the Studio can load it on
@@ -321,7 +322,7 @@ export type StylePreset = {
   material?: string
   surface: Partial<Surface>
   typography: Partial<Typography>
-  /** Optional editable print starter from PRINT_STARTERS. */
+  /** Optional editable print from the print library (print-library.ts). */
   print?: string
 }
 export const STYLE_PRESETS: StylePreset[] = [
@@ -330,8 +331,8 @@ export const STYLE_PRESETS: StylePreset[] = [
   { id: 'kraft-eco', name: 'Kraft / eco', description: 'Unbleached kraft, recycled fibres, honest type.', color: '#c9a27a', innerColor: '#b48d66', finish: 'Matte', materialPreset: 'kraft', material: 'Recycled kraft paperboard', surface: { texture: 'recycled', strength: .6 }, typography: { fontFamily: 'DM Sans', fontWeight: 700, size: 20, letterSpacing: .02, transform: 'original', color: '#2b2118', background: 'none' } },
   { id: 'retro', name: 'Retro 70s', description: 'Mustard and burnt orange with chunky display type.', color: '#e0a526', innerColor: '#c4572b', accentColor: '#5c3d2e', finish: 'Matte', surface: { texture: 'chevron', strength: .35, scale: 1.5 }, typography: { fontFamily: 'Righteous', fontWeight: 400, size: 26, letterSpacing: 0, transform: 'original', color: '#5c3d2e', background: 'none' } },
   { id: 'bold-pop', name: 'Bold pop', description: 'Saturated colour, gloss and big condensed caps.', color: '#ff3d7f', innerColor: '#ffd23f', accentColor: '#1b1b1b', finish: 'Gloss', materialPreset: 'gloss', surface: { texture: 'polka', strength: .35 }, typography: { fontFamily: 'Anton', fontWeight: 400, size: 34, letterSpacing: .01, transform: 'uppercase', color: '#ffffff', background: 'none' } },
-  { id: 'japanese', name: 'Japanese', description: 'Washi paper, seigaiha waves, restrained vermilion.', color: '#efe6d6', innerColor: '#b7472a', accentColor: '#b7472a', finish: 'Matte', surface: { texture: 'washi', strength: .7 }, typography: { fontFamily: 'Noto Serif', fontWeight: 400, size: 18, letterSpacing: .12, transform: 'original', color: '#b7472a', background: 'none' } },
-  { id: 'arabic-urdu', name: 'Arabic / Urdu', description: 'Emerald and gold, Islamic star lattice, Arabic-script type (no added tracking).', color: '#0f3d3e', innerColor: '#f2e3c6', accentColor: '#d4af37', finish: 'Soft-touch', surface: { texture: 'girih', strength: .4 }, typography: { fontFamily: 'Noto Nastaliq Urdu', fontWeight: 400, size: 24, letterSpacing: 0, transform: 'original', color: '#d4af37', background: 'none' } },
+  { id: 'japanese', name: 'Japanese', description: 'Washi paper, asanoha hemp-leaf print, restrained vermilion.', color: '#efe6d6', innerColor: '#b7472a', accentColor: '#b7472a', finish: 'Matte', surface: { texture: 'washi', strength: .7 }, typography: { fontFamily: 'Noto Serif', fontWeight: 400, size: 18, letterSpacing: .12, transform: 'original', color: '#b7472a', background: '#f3efe6', blockScale: .55 }, print: 'asanoha' },
+  { id: 'arabic-urdu', name: 'Arabic / Urdu', description: 'Emerald and gold khatam-star print, Arabic-script type (no added tracking).', color: '#0f3d3e', innerColor: '#f2e3c6', accentColor: '#d4af37', finish: 'Soft-touch', surface: { texture: 'girih', strength: .4 }, typography: { fontFamily: 'Noto Nastaliq Urdu', fontWeight: 400, size: 24, letterSpacing: 0, transform: 'original', color: '#d4af37', background: '#0f3d3e', blockScale: .55 }, print: 'khatam-stars' },
   { id: 'scandinavian', name: 'Scandinavian', description: 'Pale birch, soft grey and friendly geometric sans.', color: '#e9e4da', innerColor: '#bfc7c4', finish: 'Matte', surface: { texture: 'wood', strength: .25 }, typography: { fontFamily: 'Karla', fontWeight: 700, size: 18, letterSpacing: .03, transform: 'lowercase', color: '#3d4a4a', background: 'none' } },
   { id: 'botanical', name: 'Botanical', description: 'Sage linen with a floral print and gentle serif.', color: '#b8c9ac', innerColor: '#f5eedf', finish: 'Matte', surface: { texture: 'linen', strength: .45 }, typography: { fontFamily: 'Lora', fontWeight: 700, size: 20, letterSpacing: .02, transform: 'original', color: '#2f3d2b', background: '#f5eedf', blockScale: .55 }, print: 'garden' },
   { id: 'tech', name: 'Tech', description: 'Graphite carbon fibre with neon accent and grotesk type.', color: '#1d1f22', innerColor: '#00e0a4', accentColor: '#00e0a4', finish: 'Matte', surface: { texture: 'carbon-fiber', strength: .35 }, typography: { fontFamily: 'Space Grotesk', fontWeight: 700, size: 18, letterSpacing: .06, transform: 'uppercase', color: '#00e0a4', background: 'none' } },
@@ -357,12 +358,12 @@ export function templatePatch(template: Template, design: Design): Partial<Desig
 /** Patch that restyles a design: colours, finish, texture and type, keeping shape, size and copy. */
 export function stylePatch(style: StylePreset, design: Design): Partial<Design> {
   const { text, subtitle } = design.typography || {}
-  const starter = style.print ? PRINT_STARTERS.find(p => p.id === style.print) : undefined
+  const starter = style.print ? findPrint(style.print) : undefined
   return {
     color: style.color, innerColor: style.innerColor, accentColor: style.accentColor, finish: style.finish,
     ...(style.materialPreset ? { materialPreset: style.materialPreset } : {}), ...(style.material ? { material: style.material } : {}),
     surface: { scale: 1, strength: .5, rotation: 0, ...style.surface },
     typography: { ...design.typography, blockScale: 1, ...style.typography, ...(text !== undefined ? { text } : {}), ...(subtitle !== undefined ? { subtitle } : {}) },
-    artwork: starter ? { ...starter.artwork, layers: starter.artwork.layers.map(l => ({ ...l })) } : { ...getArtwork(design), enabled: false },
+    artwork: starter ? clonePrint(starter) : { ...getArtwork(design), enabled: false },
   }
 }

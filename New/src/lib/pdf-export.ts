@@ -12,7 +12,7 @@ const enc = new TextEncoder()
 type Layer = 'Artwork' | 'Cut' | 'Crease' | 'Perforation' | 'Marks' | 'Dimensions'
 const LAYERS: Layer[] = ['Artwork', 'Cut', 'Crease', 'Perforation', 'Marks', 'Dimensions']
 
-const pdfText = (value: string) => value.replace(/[^\x20-\x7e\xa0-\xff]/g, c => ({ '×': 'x', '·': '-', '–': '-', '—': '-', '’': "'", '“': '"', '”': '"', 'Ø': 'O' } as Record<string, string>)[c] ?? '?').replace(/([\\()])/g, '\\$1')
+const pdfText = (value: string) => value.replace(/[^\x20-\x7e\xa0-\xff]|\xd7/g, c => ({ '×': 'x', '·': '-', '–': '-', '—': '-', '’': "'", '“': '"', '”': '"', 'Ø': 'O' } as Record<string, string>)[c] ?? '?').replace(/([\\()])/g, '\\$1')
 const f = (v: number) => (Math.round(v * 1000) / 1000).toString()
 
 export async function exportPrintPdf(design: Design, artworkJpeg: Uint8Array, pixel: { width: number; height: number }): Promise<Blob> {
@@ -57,7 +57,8 @@ export async function exportPrintPdf(design: Design, artworkJpeg: Uint8Array, pi
   text(24, layout.footerY + 8, 'CUT magenta (0/100/0/0) - CREASE cyan dashed (100/0/0/0) - PERF orange dotted - artwork raster 300 dpi', 3)
   end()
 
-  const content = enc.encode(ops.join('\n'))
+  // WinAnsi text: write the content stream as single-byte Latin-1, not UTF-8.
+  const joined = ops.join('\n'), content = Uint8Array.from(joined, c => c.charCodeAt(0) & 0xff)
   const objects: (Uint8Array | string)[] = []
   const add = (o: Uint8Array | string) => { objects.push(o); return objects.length }
   const ocgIds = LAYERS.map(name => add(`<< /Type /OCG /Name (${name}) >>`))
