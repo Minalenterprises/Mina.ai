@@ -11,7 +11,6 @@ import {
   Box,
   FileText,
   Paperclip,
-  Sparkles,
   RotateCcw,
   Rotate3D,
   Layers3,
@@ -33,7 +32,7 @@ import {
 import { Header } from '../components/Header'
 import { MinalMark } from '../components/Brand'
 import { RouteLoader } from '../components/LoadingScreen'
-import { SiriGlow, SiriOrb } from '../components/SiriGlow'
+import { SiriOrb } from '../components/SiriGlow'
 import { SceneStage } from '../components/SceneStage'
 import { PlanEditor, downloadPlan } from '../components/PlanEditor'
 import { OrderModal } from '../components/OrderModal'
@@ -585,32 +584,28 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
         {/* Left Side: Real-time AI Chat Panel */}
         {showChat && (
           <aside className="studio-chat">
-            <div className="studio-chat-header">
-              <span className={`assistant-avatar ${thinking ? 'is-thinking' : ''}`}>
-                <SiriOrb active={thinking} size={42} />
-                <MinalMark size={20} />
-              </span>
-              <div>
-                <h2>AI Design Partner</h2>
-                <span>
-                  <span className="status-dot" />{' '}
-                  {thinking ? 'Working on your design' : aiActive ? `Connected · ${DESIGN_TOOL_DECLARATIONS.length} design tools` : 'AI connection needed'}
-                </span>
+            <div className="studio-chat-header sx-chat-head">
+              <span className={`sx-chat-mark ${thinking ? 'busy' : ''}`}><MinalMark size={15} /></span>
+              <div className="sx-chat-id">
+                <h2>minal</h2>
+                <span className={aiActive ? 'ok' : 'off'}>{thinking ? 'designing…' : aiActive ? 'online' : 'offline'}</span>
               </div>
-              <button
-                className="icon-button"
-                aria-label="Hide conversation"
-                title="Hide conversation"
-                onClick={() => setShowChat(false)}
-              >
-                <PanelLeftClose size={18} />
-              </button>
+              <button className="sx-icon" aria-label="Hide conversation" title="Hide conversation" onClick={() => setShowChat(false)}><PanelLeftClose size={16} /></button>
             </div>
 
-            <div className="conversation-date">YOUR DESIGN CONVERSATION</div>
-            {!aiActive && <div className="ai-connect-notice"><strong>Connect your AI designer</strong><p>Add your Google AI key to enable design tools. You can edit all design details manually.</p><Link to="/admin?tab=settings">Open AI settings <ArrowRight size={13} /></Link></div>}
+            {design.messages.length <= 1 && !thinking && (
+              <div className="sx-empty">
+                <h3>What are we<br /><em>making?</em></h3>
+                <p>Describe it in a sentence. I'll plan the structure, board and finish, then build it in 3D.</p>
+                <div className="sx-ideas">
+                  {['A rigid gift box for a silver spoon', 'A kraft mailer for candles', 'A tall tea canister, matte navy'].map(idea => (
+                    <button key={idea} onClick={() => aiActive ? send(idea) : setInput(idea)}><span>{idea}</span><ArrowUp size={14} /></button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-            <div className="studio-messages" ref={messagesRef} role="log" aria-label="Design conversation" aria-live="polite">
+            <div className={`studio-messages ${design.messages.length <= 1 && !thinking ? 'sx-hide' : ''}`} ref={messagesRef} role="log" aria-label="Design conversation" aria-live="polite">
               {design.messages.map(message => (
                 <motion.div
                   key={message.id}
@@ -668,7 +663,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
 
             {/* Chat Compose Box */}
             <div className="chat-compose-area">
-              {!thinking && (
+              {!thinking && design.messages.length > 1 && (
                 <div className="chat-suggestions">
                   {['Improve the typography', 'Explore a new structure', 'Review this design'].map(suggestion => (
                     <button key={suggestion} onClick={() => send(suggestion)}>
@@ -686,13 +681,12 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                   send()
                 }}
               >
-                <SiriGlow active={thinking} variant="ring" />
                 <textarea
                   aria-label="Message minal about your product"
                   placeholder={
                     aiActive
-                      ? 'Say anything: "make a hexagonal box", "remove the top", "shopping bag with handles"…'
-                      : 'Connect AI in Settings, or use the design editors…'
+                      ? 'Describe your packaging…'
+                      : 'Describe your packaging…'
                   }
                   value={input}
                   onChange={e => setInput(e.target.value)}
@@ -716,7 +710,6 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                   >
                     {uploading ? <Loader2 size={18} className="spin" /> : <Paperclip size={18} />}
                   </button>
-                  <span>Describe a change to update your preview</span>
                   <button
                     type={thinking ? "button" : "submit"}
                     onClick={thinking ? () => requestRef.current?.abort() : undefined}
@@ -739,9 +732,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                   e.target.value = ''
                 }}
               />
-              <p className="assistant-disclosure">
-                <Sparkles size={10} /> AI edits through tools · completed edits can be undone
-              </p>
+              <p className="sx-foot">{aiActive ? <>Enter to send · Shift+Enter for a new line</> : <>AI is offline. <Link to="/admin?tab=settings">Connect a key</Link> or edit with the tools.</>}</p>
             </div>
           </aside>
         )}
