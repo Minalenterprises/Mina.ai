@@ -3,12 +3,12 @@ import { readFile, access } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { build } from 'esbuild'
 
-const bundle = await build({ stdin: { contents: `export * from './src/lib/gemini'; export * from './src/lib/design-tools'; export * from './src/lib/typography'; export * from './src/lib/fonts'; export * from './src/lib/types'; export * from './src/lib/ai-settings'; export * from './src/lib/textures'; export * from './src/lib/product-info'; export * from './src/lib/surface-validation'; export * from './src/lib/dieline-layout'; export * from './src/lib/dxf-export'; export * from './src/lib/artwork-frame'; export * from './src/lib/print-artwork'; export * from './src/lib/image-generation'`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node', format: 'esm', plugins: [{ name: 'runtime-skill', setup(builder) { builder.onResolve({ filter: /SKILL\.md\?raw$/ }, args => ({ path: resolve(args.resolveDir, args.path.replace('?raw', '')), namespace: 'skill' })); builder.onLoad({ filter: /.*/, namespace: 'skill' }, async args => ({ contents: await readFile(args.path, 'utf8'), loader: 'text' })) } }] })
+const bundle = await build({ stdin: { contents: `export * from './src/lib/gemini'; export * from './src/lib/design-tools'; export * from './src/lib/typography'; export * from './src/lib/fonts'; export * from './src/lib/types'; export * from './src/lib/ai-settings'; export * from './src/lib/textures'; export * from './src/lib/product-info'; export * from './src/lib/surface-validation'; export * from './src/lib/dieline-layout'; export * from './src/lib/dxf-export'; export * from './src/lib/artwork-frame'; export * from './src/lib/print-artwork'; export * from './src/lib/image-generation'; export * from './src/lib/shapes'; export * from './src/lib/materials-catalog'`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node', format: 'esm', plugins: [{ name: 'runtime-skill', setup(builder) { builder.onResolve({ filter: /SKILL\.md\?raw$/ }, args => ({ path: resolve(args.resolveDir, args.path.replace('?raw', '')), namespace: 'skill' })); builder.onLoad({ filter: /.*/, namespace: 'skill' }, async args => ({ contents: await readFile(args.path, 'utf8'), loader: 'text' })) } }] })
 const api = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
 const initial = api.newDesign('Typography regression test')
 const preview = { camera: 'front', openBox: false, autoRotate: false }
 assert.equal(api.TEXTURES.length, 28)
-assert.equal(api.DESIGN_TOOL_DECLARATIONS.length, 17)
+assert.equal(api.DESIGN_TOOL_DECLARATIONS.length, 19)
 assert.throws(() => api.validateSurface({ texture: 'Imaginary Material' }))
 assert.throws(() => api.validateSurface({ scale: 0 }))
 assert.throws(() => api.validateProductInfo({ barcode: '4006381333932' }))
@@ -158,4 +158,70 @@ assert.equal(imageResult.design.artwork.image, logo)
 const nativeReply = nativeImageRequests[2].contents.at(-1).parts[0].functionResponse
 assert.equal(nativeReply.id, 'img-1')
 assert.equal(nativeReply.parts[0].inlineData.data, 'dGVzdA==')
+
+// Shape engine: every shape validates, unfolds inside the sheet, and keeps legacy designs stable.
+assert.equal(api.resolveShape(initial), 'rigid-box')
+assert.equal(api.resolveShape({ category: 'Bag' }), 'bag')
+assert.equal(api.resolveShape({ category: 'Carton', structure: 'standard' }), 'carton')
+assert.equal(api.resolveShape({ category: 'Canister', structure: 'hexagon' }), 'canister')
+assert.equal(api.resolveShape({ category: 'Box', structure: 'hexagon' }), 'hexagon')
+assert.equal(api.resolveShape({ category: 'Box', structure: 'bottle' }), 'bottle')
+for (const shape of api.SHAPES) {
+  const switched = await api.executeDesignTool('set_shape', { shape: shape.id }, initial, preview)
+  assert.equal(api.resolveShape(switched.design), shape.id, shape.id)
+  assert.deepEqual(switched.design.dimensions, shape.dimensions)
+  for (const openTop of [false, true]) for (const placement of ['bottom', 'back']) {
+    const model = { ...switched.design, openTop, hasHandles: shape.id === 'bag', productInfo: { visible: true, placement } }
+    const sheet = api.buildDieline(model)
+    assert.ok(sheet.panels.some(p => p.artwork === 'front'), `${shape.id} has a printed front`)
+    for (const rule of sheet.rules) for (const [x, y] of rule.points) assert.ok(Number.isFinite(x) && Number.isFinite(y) && x >= 0 && y >= 0 && x < sheet.width && y < sheet.height, `${shape.id} rule inside sheet`)
+    for (const panel of sheet.panels.filter(p => p.artwork)) { const area = api.artworkFrame(model, panel); assert.ok(area.width > 0 && area.height > 0 && Number.isFinite(area.x + area.y), `${shape.id} artwork frame`) }
+  }
+}
+const kept = await api.executeDesignTool('set_shape', { shape: 'pouch', keepDimensions: true }, initial, preview)
+assert.deepEqual(kept.design.dimensions, initial.dimensions)
+assert.equal(kept.design.category, 'Bag')
+const viaUpdate = await api.executeDesignTool('update_design', { shape: 'prism', shapeParams: { sides: 5, taper: .8 }, materialPreset: 'foil' }, initial, preview)
+assert.equal(viaUpdate.design.structure, 'prism')
+assert.equal(viaUpdate.design.shapeParams.sides, 5)
+assert.equal(api.resolveMaterialPreset(viaUpdate.design), 'foil')
+assert.equal(api.designState(viaUpdate.design).shape, 'prism')
+assert.equal(api.buildDieline(viaUpdate.design).panels.filter(p => /^side-\d/.test(p.id)).length, 5)
+const vase = await api.executeDesignTool('set_shape', { shape: 'lathe', shapeParams: { profile: [[0, 0], [.7, 0], [1, .3], [1, .6], [.55, .85], [.6, 1]] } }, initial, preview)
+assert.ok(api.roundLayout(vase.design).band[1] > api.roundLayout(vase.design).band[0])
+const star = Array.from({ length: 10 }, (_, i) => { const a = Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? .45 : 1; return [Math.cos(a) * r, Math.sin(a) * r] })
+const starBox = await api.executeDesignTool('set_shape', { shape: 'extrude', shapeParams: { footprint: star } }, initial, preview)
+assert.equal(api.buildDieline(starBox.design).panels.filter(p => /^side-\d/.test(p.id)).length, 10)
+// The default heart has no flat front: it unfolds as one scored wrap with a single front print.
+const heartSheet = api.buildDieline({ ...starBox.design, shapeParams: {} })
+assert.ok(heartSheet.panels.some(p => p.id === 'side-wrap' && p.artwork === 'front'))
+assert.ok(heartSheet.rules.filter(r => r.layer === 'fold').length >= 3)
+// Changing shape drops parameters that belonged to the previous shape.
+assert.equal((await api.executeDesignTool('set_shape', { shape: 'bottle' }, starBox.design, preview)).design.shapeParams.footprint, undefined)
+assert.throws(() => api.validateShapeParams({ sides: 40 }))
+assert.throws(() => api.validateShapeParams({ profile: [[0, 1], [1, 0]] }))
+assert.throws(() => api.validateShapeParams({ footprint: [[0, 0], [2, 0], [0, 1]] }))
+assert.throws(() => api.validateShapeParams({ wobble: 1 }))
+await assert.rejects(() => api.executeDesignTool('set_shape', { shape: 'spaceship' }, initial, preview))
+assert.throws(() => api.validateDesignPatch({ materialPreset: 'unobtainium' }))
+assert.equal(api.resolveMaterialPreset({ material: 'Amber glass', finish: 'Gloss' }), 'glass')
+assert.equal(api.resolveMaterialPreset({ material: 'Kraft paperboard', finish: 'Matte' }), 'kraft')
+assert.equal(api.resolveMaterialPreset({ material: 'FSC paperboard', finish: 'Gloss' }), 'gloss')
+assert.equal(api.normalizeModel('gemini-2.5-pro'), api.DEFAULT_SETTINGS.model)
+assert.equal(api.normalizeModel('gemini-9-flash-preview'), 'gemini-9-flash-preview')
+assert.equal(api.normalizeModel('<script>'), api.DEFAULT_SETTINGS.model)
+
+// Harness robustness: string arguments, malformed calls and transient 503s recover.
+globalThis.localStorage = { getItem: () => JSON.stringify({ ...api.DEFAULT_SETTINGS, apiKey: 'test-key' }) }
+const robust = [
+  { ok: false, status: 503, json: async () => ({ error: { message: 'overloaded' } }) },
+  response([]),
+  response([{ functionCall: { name: 'set_shape', args: JSON.stringify({ shape: 'gable' }) } }]),
+  response([{ text: 'Made it a gable box.' }]),
+]
+robust[1] = { ok: true, json: async () => ({ candidates: [{ finishReason: 'MALFORMED_FUNCTION_CALL', content: { parts: [] } }] }) }
+globalThis.fetch = async () => robust.shift()
+const recovered = await api.chatWithGemini([{ role: 'model', text: 'Hi' }, { role: 'user', text: 'gable box please' }], initial)
+assert.equal(api.resolveShape(recovered.design), 'gable')
+assert.equal(recovered.tools[0].status, 'complete')
 console.log('Passed: native tools, original motifs, exact logo repeats, real image API routing, image edits/errors/cancellation, signatures, vision, no keyword edits, text fitting, and 72 licensed fonts.')

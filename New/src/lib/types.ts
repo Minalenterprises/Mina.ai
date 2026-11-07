@@ -32,12 +32,35 @@ export type ModelPart = {
 }
 export type ProductCategory = 'Box' | 'Canister' | 'Carton' | 'Bag' | (string & {})
 export type Structure = 'standard' | 'hexagon' | 'drawer' | 'window' | 'divider'
+  | 'rigid-box' | 'carton' | 'bag' | 'canister' | 'octagon' | 'prism' | 'pillow' | 'pyramid' | 'gable' | 'mailer'
+  | 'tube' | 'bottle' | 'jar' | 'pouch' | 'sachet' | 'tray' | 'sleeve' | 'display' | 'lathe' | 'extrude'
+/** Optional parameters for parametric shapes. All optional; sensible defaults per shape. */
+export type ShapeParams = {
+  /** Prism sides, 3–12. */
+  sides?: number
+  /** Top scale relative to the base, 0.2–1.5 (prism, extrude, tray walls). */
+  taper?: number
+  /** Bottle neck diameter / body diameter, 0.1–1. */
+  neckRatio?: number
+  /** Bottle shoulder height as a fraction of total height, 0–0.6. */
+  shoulder?: number
+  /** Cap / lid height in mm, 0–200 (0 = automatic). */
+  capHeight?: number
+  /** Revolve profile: [radius 0–1, height 0–1] from bottom to top. */
+  profile?: [number, number][]
+  /** Extrude footprint: [x, z] points in -1..1. */
+  footprint?: [number, number][]
+}
+/** Physically based surface preset. 'auto' infers from material + finish text. */
+export type MaterialPreset = 'auto' | 'paper' | 'kraft' | 'matte' | 'gloss' | 'soft-touch' | 'foil' | 'metal' | 'clear' | 'glass' | 'plastic'
 export type Design = {
   id: string
   name: string
   brief: string
   category: ProductCategory
   structure?: Structure
+  shapeParams?: ShapeParams
+  materialPreset?: MaterialPreset
   color: string
   innerColor?: string
   accentColor?: string
@@ -97,6 +120,8 @@ export type Template = {
   icon: string
   category: Design['category']
   structure?: Structure
+  shapeParams?: ShapeParams
+  materialPreset?: MaterialPreset
   typography?: Partial<Typography>
   modelParts?: ModelPart[]
   innerColor?: string
@@ -332,6 +357,21 @@ export const templates: Template[] = [
     brief: 'A clean, clinical supplement carton in forest green with clear product information.',
     notes: 'Supplement bottle carton with nutritional info panels and clean design.'
   },
+  { id: 'pillow-gift', name: 'Pillow Gift Box', description: 'Curved pillow pack for scarves, soaps and gift cards', icon: 'carton', category: 'Carton', structure: 'pillow', tag: 'Specialty', color: '#c9a0b4', material: 'Metallized cardstock', finish: 'Gloss', dimensions: { length: 160, width: 45, height: 110 }, brief: 'A glossy pillow gift box with soft curves.', notes: 'Curved crease pillow box.' },
+  { id: 'octagon-tea', name: 'Octagon Tea Box', description: 'Eight-sided rigid box with lift-off lid', icon: 'box', category: 'Box', structure: 'octagon', tag: 'Specialty', color: '#3f5f4a', innerColor: '#efe4cf', material: 'Recycled rigid board', finish: 'Soft-touch', dimensions: { length: 180, width: 180, height: 90 }, brief: 'An octagonal tea gift box.', notes: 'Octagonal rigid box.' },
+  { id: 'pyramid-favor', name: 'Pyramid Favor Box', description: 'Square pyramid with petal-folding panels', icon: 'box', category: 'Box', structure: 'pyramid', tag: 'Specialty', color: '#e8b04a', material: 'FSC paperboard', finish: 'Matte', dimensions: { length: 110, width: 110, height: 110 }, brief: 'A playful pyramid favor box for sweets.', notes: 'Four triangular panels fold to a point.' },
+  { id: 'gable-bakery', name: 'Gable Bakery Box', description: 'Carry box with a peaked handle top', icon: 'carton', category: 'Carton', structure: 'gable', tag: 'Bags & Retail', color: '#d9b48f', material: 'Kraft paperboard', finish: 'Matte', materialPreset: 'kraft', dimensions: { length: 150, width: 90, height: 160 }, brief: 'A kraft gable box for pastries and take-away.', notes: 'Gable top with handle cut-out.' },
+  { id: 'mailer-box', name: 'E-commerce Mailer', description: 'Roll-end tuck-front mailer with hinged lid', icon: 'box', category: 'Box', structure: 'mailer', tag: 'Boxes', color: '#f4f1ea', innerColor: '#ff6b35', material: 'E-flute corrugated board', finish: 'Matte', dimensions: { length: 300, width: 220, height: 100 }, brief: 'A subscription mailer with a bold printed interior.', notes: 'Hinged lid with tuck front.' },
+  { id: 'poster-tube', name: 'Tube With Lids', description: 'Long paper tube with top cap and end cap', icon: 'canister', category: 'Canister', structure: 'tube', tag: 'Specialty', color: '#20324a', material: 'Spiral-wound paperboard', finish: 'Matte', dimensions: { length: 80, width: 80, height: 300 }, brief: 'A premium paper tube with telescoping cap.', notes: 'Top cap and bottom end cap.' },
+  { id: 'serum-bottle', name: 'Glass Serum Bottle', description: 'Bottle with shoulder, neck, cap and wrap label', icon: 'canister', category: 'Canister', structure: 'bottle', tag: 'Specialty', color: '#c98f5a', accentColor: '#1d1d1d', material: 'Amber glass', finish: 'Gloss', materialPreset: 'glass', dimensions: { length: 50, width: 50, height: 130 }, brief: 'An amber glass serum bottle with a black cap.', notes: 'Wrap-around paper label.' },
+  { id: 'cream-jar', name: 'Cosmetic Jar', description: 'Wide-mouth jar with screw lid', icon: 'canister', category: 'Canister', structure: 'jar', tag: 'Specialty', color: '#f2e6dc', accentColor: '#c9a96e', material: 'Frosted glass', finish: 'Soft-touch', dimensions: { length: 80, width: 80, height: 70 }, brief: 'A frosted cosmetic cream jar with gold lid.', notes: 'Screw lid jar.' },
+  { id: 'coffee-pouch', name: 'Stand-up Pouch', description: 'Flexible doypack with gusset and tear notch', icon: 'bag', category: 'Bag', structure: 'pouch', tag: 'Bags & Retail', color: '#2b2b2b', material: 'Matte laminated film', finish: 'Matte', dimensions: { length: 140, width: 60, height: 210 }, brief: 'A matte black coffee pouch.', notes: 'Stand-up pouch with bottom gusset.' },
+  { id: 'sample-sachet', name: 'Sample Sachet', description: 'Flat sachet with crimped seals', icon: 'bag', category: 'Bag', structure: 'sachet', tag: 'Bags & Retail', color: '#b7d3df', material: 'Foil laminate', finish: 'Gloss', materialPreset: 'foil', dimensions: { length: 80, width: 8, height: 110 }, brief: 'A foil sample sachet for skincare.', notes: 'Three-side seal sachet.' },
+  { id: 'food-tray', name: 'Food Tray', description: 'Open tray with angled walls', icon: 'box', category: 'Box', structure: 'tray', tag: 'Boxes', color: '#e7d7bd', material: 'Moulded pulp board', finish: 'Matte', materialPreset: 'kraft', dimensions: { length: 240, width: 160, height: 50 }, brief: 'A sustainable food tray.', notes: 'Open tray.' },
+  { id: 'chocolate-sleeve', name: 'Chocolate Sleeve Box', description: 'Printed sleeve over a sliding tray', icon: 'box', category: 'Box', structure: 'sleeve', tag: 'Boxes', color: '#5a2e2a', innerColor: '#e9d3b5', material: 'FSC paperboard', finish: 'Soft-touch', dimensions: { length: 200, width: 120, height: 35 }, brief: 'A chocolate bar sleeve box.', notes: 'Sleeve and tray.' },
+  { id: 'counter-display', name: 'Counter Display', description: 'Shelf-ready display with header card', icon: 'box', category: 'Box', structure: 'display', tag: 'Bags & Retail', color: '#e94f37', innerColor: '#ffffff', material: 'E-flute corrugated board', finish: 'Gloss', dimensions: { length: 260, width: 180, height: 120 }, brief: 'A bright counter display for impulse products.', notes: 'Open front with header.' },
+  { id: 'custom-vase', name: 'Custom Revolved Shape', description: 'Any round object from a profile curve', icon: 'canister', category: 'Canister', structure: 'lathe', tag: 'Custom', color: '#d8c8b8', material: 'Ceramic look', finish: 'Gloss', dimensions: { length: 100, width: 100, height: 160 }, brief: 'A custom revolved container.', notes: 'Profile-driven geometry.' },
+  { id: 'custom-heart', name: 'Custom Extruded Shape', description: 'Any footprint (heart by default) with lid', icon: 'box', category: 'Box', structure: 'extrude', tag: 'Custom', color: '#c2273d', innerColor: '#f5d5da', material: 'Recycled rigid board', finish: 'Soft-touch', dimensions: { length: 180, width: 170, height: 70 }, brief: 'A heart-shaped gift box.', notes: 'Footprint-driven geometry.' },
 ]
 export const uid = () => crypto.randomUUID()
 export function newDesign(brief = ''): Design {
