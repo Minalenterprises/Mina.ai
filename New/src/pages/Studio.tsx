@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, lazy } from 'react'
+import { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -38,7 +38,7 @@ import { PlanEditor, downloadPlan } from '../components/PlanEditor'
 import { OrderModal } from '../components/OrderModal'
 import { Dieline, FlatDesignView } from '../components/Dieline'
 import { useStore } from '../lib/store'
-import { newDesign, uid, templates, type Design, type Template, type ToolActivity, type PreviewSettings } from '../lib/types'
+import { newDesign, uid, type Design, type Template, type ToolActivity, type PreviewSettings } from '../lib/types'
 import { previewKey } from '../lib/design-tools'
 import { SurfaceEditor, ProductInfoEditor } from '../components/SurfaceEditor'
 import { getSurface, TEXTURES } from '../lib/textures'
@@ -53,6 +53,7 @@ import { chatWithGemini } from '../lib/gemini'
 import { exportToDxf } from '../lib/dxf-export'
 
 const ProductScene = lazy(() => import('../components/ProductScene'))
+const TemplateLibrary = lazy(() => import('../components/TemplateLibrary'))
 
 const CODE_PRESETS = [
   {
@@ -269,7 +270,6 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
   const [showTemplates, setShowTemplates] = useState(false)
   const [showCode, setShowCode] = useState(false)
   const [codeDraft, setCodeDraft] = useState(design.customCode || '')
-  const [templateFilter, setTemplateFilter] = useState('All')
   const [downloadMenu, setDownloadMenu] = useState(false)
   const aiActive = isConfigured()
   const [progress, setProgress] = useState('')
@@ -381,28 +381,13 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
     }
   }
 
-  const applyTemplate = (t: Template) => {
-    setCodeDraft(t.customCode || '')
-    patch({
-      name: design.name === 'Untitled idea' ? t.name : design.name,
-      category: t.category,
-      structure: t.structure ?? 'standard',
-      color: t.color,
-      innerColor: t.innerColor,
-      accentColor: t.accentColor,
-      modelParts: t.modelParts || [],
-      ...(!design.typography ? { typography: t.typography } : {}),
-      material: t.material,
-      finish: t.finish,
-      dimensions: { ...t.dimensions },
-      openTop: t.openTop ?? false,
-      hasHandles: t.hasHandles ?? false,
-      customCode: t.customCode,
-      brief: design.brief || t.brief,
-      notes: t.notes
-    })
+  const applyLibrary = (updates: Partial<Design>, label: string, t?: Template) => {
+    if (t) {
+      setCodeDraft(t.customCode || '')
+      patch({ ...updates, name: design.name === 'Untitled idea' ? t.name : design.name, customCode: t.customCode, brief: design.brief || t.brief })
+    } else patch(updates)
     setShowTemplates(false)
-    notify(`Loaded ${t.name} template`)
+    notify(label)
   }
 
   const applyPresetCode = (preset: typeof CODE_PRESETS[0]) => {
@@ -539,12 +524,6 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
   const completedTools = activeTools.filter(tool => tool.status === 'complete').length
   const latestTool = activeTools.at(-1)?.summary
 
-  const templateCategories = ['All', 'Bags & Retail', 'Boxes', 'Specialty']
-  const filteredTemplates =
-    templateFilter === 'All'
-      ? templates
-      : templates.filter(t => (t.tag || 'Boxes').toLowerCase().includes(templateFilter.toLowerCase()))
-
   return (
     <div className="workspace-page realtime-studio">
       <Header workspace />
@@ -578,7 +557,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
               setShowCode(false)
             }}
           >
-            <ShoppingBag size={14} /> Templates ({templates.length})
+            <ShoppingBag size={14} /> Templates & styles
           </button>
 
           {/* 3D Code Inspector */}
@@ -1063,68 +1042,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
 
           {/* Packaging Templates Modal / Drawer */}
           <AnimatePresence>
-            {showTemplates && (
-              <div className="modal-backdrop" onClick={() => setShowTemplates(false)}>
-                <motion.div
-                  className="templates-modal"
-                  role="dialog"
-                  aria-modal="true"
-                  initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                  onClick={e => e.stopPropagation()}
-                >
-                  <div className="templates-modal-header">
-                    <div>
-                      <span className="eyebrow">PACKAGING TEMPLATES LIBRARY</span>
-                      <h2>Choose a Starting Template</h2>
-                      <p>Instant 3D structures ready to customize with AI.</p>
-                    </div>
-                    <button className="icon-button" onClick={() => setShowTemplates(false)}>
-                      <X size={20} />
-                    </button>
-                  </div>
-
-                  <div className="templates-filter-bar">
-                    {templateCategories.map(cat => (
-                      <button
-                        key={cat}
-                        className={`filter-btn ${templateFilter === cat ? 'active' : ''}`}
-                        onClick={() => setTemplateFilter(cat)}
-                      >
-                        {cat}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="templates-grid-modal">
-                    {filteredTemplates.map(t => (
-                      <button
-                        key={t.id}
-                        className="template-card"
-                        onClick={() => applyTemplate(t)}
-                      >
-                        <div className="template-card-icon">
-                          {t.icon === 'bag' ? <ShoppingBag size={20} /> : t.icon === 'canister' ? <Layers3 size={20} /> : <Box size={20} />}
-                        </div>
-                        <div className="template-card-info">
-                          <strong>{t.name}</strong>
-                          <span className="template-card-dims">
-                            {t.dimensions.length} × {t.dimensions.width} × {t.dimensions.height} mm
-                          </span>
-                          <p>{t.description}</p>
-                          <div className="template-card-tags">
-                            <span className="badge">{t.category}</span>
-                            {t.openTop && <span className="badge badge-subtle">Open Top</span>}
-                            {t.hasHandles && <span className="badge badge-subtle">Handles</span>}
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              </div>
-            )}
+            {showTemplates && <Suspense fallback={null}><TemplateLibrary design={design} onApply={applyLibrary} onClose={() => setShowTemplates(false)} /></Suspense>}
           </AnimatePresence>
         </section>
       </div>

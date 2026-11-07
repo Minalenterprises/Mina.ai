@@ -4,7 +4,7 @@ import { TEXTURES, getSurface } from './textures'
 import { getProductInfo } from './product-info'
 import { validateSurface, validateProductInfo } from './surface-validation'
 import { getArtwork, PRINT_STARTERS, validateArtwork } from './print-artwork'
-import { templates, type Design, type MaterialPreset, type ModelPart, type PreviewSettings, type Structure, type Typography } from './types'
+import type { Design, MaterialPreset, ModelPart, PreviewSettings, Structure, Typography } from './types'
 import { isShapeId, resolveShape, shapeInfo, shapePatch, SHAPE_IDS, SHAPES, validateShapeParams, type ShapeId } from './shapes'
 import { MATERIAL_PRESETS, resolveMaterialPreset } from './materials-catalog'
 
@@ -170,14 +170,16 @@ export const DESIGN_TOOL_DECLARATIONS = [
   { name: 'generate_artwork_image', description: 'Generate an actual original raster illustration or seamless texture using Google image AI. Can edit existing image or use uploaded reference. Applies returned image under existing motifs/logo layers. Requires image model access/quota. Exact logos and text should remain separate editable layers.', parameters: object({ prompt: string('Detailed visual instruction, max 4000 characters'), seamless: { type: 'BOOLEAN' }, editCurrent: { type: 'BOOLEAN' }, useReference: { type: 'BOOLEAN' } }, ['prompt']) },
   { name: 'read_design', description: 'Read the actual current packaging specification and typography.' },
   { name: 'list_fonts', description: 'Search the 72 locally installed font families before choosing typography.', parameters: object({ query: string(), category: string() }) },
-  { name: 'list_templates', description: 'List ready-made packaging templates (shape, dimensions, colours, material). Good starting points.', parameters: object({ query: string() }) },
+  { name: 'list_templates', description: 'List 70+ ready-made packaging templates by sector (cosmetics, food, coffee & tea, candles, jewelry, electronics, bakery, wine & spirits, pharma, apparel, gifts, Arabic/Urdu) with shape, dimensions, colours and material. Query by name, sector or shape.', parameters: object({ query: string() }) },
+  { name: 'list_styles', description: 'List design style presets (minimal, luxury, kraft/eco, retro, bold pop, Japanese, Arabic/Urdu, Scandinavian, botanical, tech, apothecary, playful, art deco, holographic, heritage).', parameters: object({ query: string() }) },
+  { name: 'apply_style', description: 'Restyle the design with a style preset by exact ID: colours, finish, material texture, typography (and an optional editable print). Keeps shape, dimensions and printed copy.', parameters: object({ id: string() }, ['id']) },
   { name: 'list_shapes', description: 'List every physical shape the 3D engine can build (boxes, cartons, mailers, pillow, pyramid, gable, polygon prisms, tubes, bottles, jars, pouches, sachets, trays, sleeves, displays, custom revolved and custom extruded shapes) with default dimensions and parameters.', parameters: object({ query: string() }) },
   { name: 'set_shape', description: 'Switch the packaging to a physical shape. By default also applies that shape’s typical dimensions; pass keepDimensions true to keep the current size, or pass dimensions. For anything not in the catalogue use shape lathe (round, profile) or extrude (any outline, footprint).', parameters: object({ shape: shapeChoice, keepDimensions: { type: 'BOOLEAN' }, dimensions: object({ length: numeric('5–600 mm'), width: numeric('5–600 mm'), height: numeric('5–600 mm') }), shapeParams: shapeParamsSchema, openTop: { type: 'BOOLEAN' } }, ['shape']) },
   { name: 'update_design', description: 'Apply requested packaging changes. Omitted fields are preserved. Validation errors are returned for correction. Prefer shape (or set_shape) over category/structure.', parameters: object({ name: string(), brief: string(), notes: string(), shape: shapeChoice, shapeParams: shapeParamsSchema, materialPreset: { type: 'STRING', enum: [...PRESET_IDS], description: 'Physically based surface: paper, kraft, matte, soft-touch, gloss, foil (metallic), metal, clear (film/PET), glass, plastic; auto infers from material text.' }, category: choice(['Box', 'Canister', 'Carton', 'Bag']), structure: { type: 'STRING', enum: STRUCTURES as string[] }, color: string('Hex color'), innerColor: string('Hex interior / lining colour; also the paper label colour on glass or clear bottles and jars'), accentColor: string('Hex handle/accent color'), wallThickness: numeric('0.5–6 mm'), cornerRadius: numeric('0–20 mm'), material: string(), finish: choice(['Matte', 'Soft-touch', 'Gloss']), quantity: { type: 'INTEGER' }, dimensions: object({ length: numeric('5–600 mm'), width: numeric('5–600 mm'), height: numeric('5–600 mm') }), openTop: { type: 'BOOLEAN' }, hasHandles: { type: 'BOOLEAN' } }) },
   { name: 'update_typography', description: 'Set actual printed copy, font, color, alignment, spacing, size, case, and printed faces.', parameters: typographySchema },
   { name: 'apply_template', description: 'Apply a template by its exact ID. Preserve branding and typography; use update_design for further changes.', parameters: object({ id: string() }, ['id']) },
   { name: 'set_model_parts', description: 'Replace optional model accessories with up to 24 safe primitives: inserts, dividers, ribbons, display objects. All sizes/positions are mm; origin is the base center; y points upward. Rotation is degrees. These add geometry; they do not cut holes in the base model.', parameters: object({ parts: { type: 'ARRAY', items: partSchema } }, ['parts']) },
-  { name: 'list_textures', description: 'Explore 28 real procedural material texture tiles.', parameters: object({ query: string() }) },
+  { name: 'list_textures', description: `Explore ${TEXTURES.length} real procedural material finishes (paper, washi, textile, velvet, wood, marble, leather, metallic, holographic, pearlescent, embossed patterns).`, parameters: object({ query: string() }) },
   { name: 'update_surface', description: 'Apply a texture from list_textures, preserving omitted surface settings.', parameters: object({ texture: string(), scale: numeric('0.25–4; larger makes larger pattern tiles'), strength: numeric('0–1'), rotation: numeric('-180–180 degrees') }) },
   { name: 'update_product_info', description: 'Print underside or back information. Never invent ingredients, certifications, barcode numbers or claims.', parameters: object({ visible: { type: 'BOOLEAN' }, placement: choice(['bottom', 'back']), showSpecs: { type: 'BOOLEAN' }, description: string(), contents: string(), care: string(), warnings: string(), origin: string(), website: string(), sku: string(), barcode: string('Valid EAN-13 including checksum, or empty to remove.') }) },
   { name: 'set_preview', description: 'Show a useful view of the real model and open/close the lid or drawer.', parameters: object({ camera: choice(['perspective', 'front', 'back', 'top', 'bottom']), openBox: { type: 'BOOLEAN' }, autoRotate: { type: 'BOOLEAN' } }) },
@@ -191,7 +193,16 @@ export async function executeDesignTool(name: string, args: unknown, design: Des
   let nextPreview = preview
   if (name === 'read_design') return { design, preview, result: designState(design), summary: 'Read current design', fields: [] }
   if (name === 'list_fonts') return { design, preview, result: FONTS.filter(font => (!input.query || font.family.toLowerCase().includes(String(input.query).toLowerCase())) && (!input.category || font.category.toLowerCase() === String(input.category).toLowerCase())), summary: 'Explored installed fonts', fields: [] }
-  if (name === 'list_templates') return { design, preview, result: templates.filter(template => !input.query || `${template.name} ${template.description}`.toLowerCase().includes(String(input.query).toLowerCase())).map(({ id, name, dimensions, category, structure, description }) => ({ id, name, dimensions, category, structure: structure || 'standard', description })), summary: 'Explored packaging templates', fields: [] }
+  if (name === 'list_templates') {
+    const { templates } = await import('./template-library')
+    const q = String(input.query || '').toLowerCase()
+    return { design, preview, result: templates.filter(template => !q || `${template.name} ${template.description} ${template.tag || ''} ${template.structure || ''}`.toLowerCase().includes(q)).map(({ id, name, dimensions, category, structure, description, tag }) => ({ id, name, sector: tag || 'Boxes', dimensions, category, structure: structure || 'standard', description })), summary: 'Explored packaging templates', fields: [] }
+  }
+  if (name === 'list_styles') {
+    const { STYLE_PRESETS } = await import('./template-library')
+    const q = String(input.query || '').toLowerCase()
+    return { design, preview, result: STYLE_PRESETS.filter(style => !q || `${style.id} ${style.name} ${style.description}`.toLowerCase().includes(q)).map(({ id, name, description, color, finish, surface, typography }) => ({ id, name, description, color, finish, texture: surface.texture, font: typography.fontFamily })), summary: 'Explored design styles', fields: [] }
+  }
   if (name === 'list_shapes') return { design, preview, result: SHAPES.filter(shape => !input.query || `${shape.id} ${shape.name} ${shape.description}`.toLowerCase().includes(String(input.query).toLowerCase())).map(({ id, name, description, dimensions, lid, round, params }) => ({ id, name, description, defaultDimensions: dimensions, hasLid: lid, round: !!round, params: params || [] })), summary: 'Explored packaging shapes', fields: [] }
   if (name === 'list_textures') return { design, preview, result: TEXTURES.filter(texture => !input.query || `${texture.name} ${texture.category}`.toLowerCase().includes(String(input.query).toLowerCase())), summary: 'Explored material textures', fields: [] }
   if (name === 'list_print_designs') return { design, preview, result: PRINT_STARTERS.filter(p => !input.query || p.name.toLowerCase().includes(String(input.query).toLowerCase())), summary: 'Explored editable print designs', fields: [] }
@@ -220,9 +231,15 @@ export async function executeDesignTool(name: string, args: unknown, design: Des
   else if (name === 'update_typography') patch = { typography: validateTypography(input) }
   else if (name === 'set_model_parts') patch = { modelParts: validateModelParts(input.parts) }
   else if (name === 'apply_template') {
+    const { templates, templatePatch } = await import('./template-library')
     const template = templates.find(template => template.id === input.id)
     if (!template) throw new Error('Unknown template ID. Call list_templates first.')
-    patch = { category: template.category, structure: template.structure || 'standard', shapeParams: template.shapeParams || {}, materialPreset: template.materialPreset || 'auto', dimensions: { ...template.dimensions }, material: template.material, finish: template.finish, color: template.color, innerColor: template.innerColor, accentColor: template.accentColor, openTop: template.openTop ?? false, hasHandles: template.hasHandles ?? false, notes: template.notes, modelParts: template.modelParts || [], ...(!design.typography ? { typography: template.typography } : {}) }
+    patch = templatePatch(template, design) as DesignPatch
+  } else if (name === 'apply_style') {
+    const { STYLE_PRESETS, stylePatch } = await import('./template-library')
+    const style = STYLE_PRESETS.find(style => style.id === input.id)
+    if (!style) throw new Error('Unknown style ID. Call list_styles first.')
+    patch = stylePatch(style, design) as DesignPatch
   } else if (name === 'set_preview') {
     const camera = input.camera === undefined ? preview.camera : enumValue(input.camera, ['perspective', 'front', 'back', 'top', 'bottom'], 'camera')
     for (const key of ['openBox', 'autoRotate']) if (input[key] !== undefined && typeof input[key] !== 'boolean') throw new Error(`${key} must be a boolean.`)
@@ -237,5 +254,5 @@ export async function executeDesignTool(name: string, args: unknown, design: Des
   }
   if (patch?.typography?.fontFamily) await loadFont(patch.typography.fontFamily)
   const fields = patch ? Object.keys(patch).flatMap(key => key === 'typography' ? Object.keys(patch.typography || {}).map(field => `typography.${field}`) : [key]) : Object.keys(input)
-  return { design: next, preview: nextPreview, result: { applied: true, fields, design: designState(next), preview: nextPreview }, summary: name === 'set_shape' ? `Changed shape to ${shapeInfo(resolveShape(next)).name}` : name === 'update_surface' ? 'Applied a material texture' : name === 'update_product_info' ? 'Updated printed product information' : name === 'update_typography' ? 'Updated printed text and typography' : name === 'apply_template' ? 'Applied packaging template' : name === 'set_model_parts' ? `Added ${next.modelParts?.length || 0} model parts` : name === 'set_preview' ? 'Adjusted the preview' : 'Updated packaging design', fields }
+  return { design: next, preview: nextPreview, result: { applied: true, fields, design: designState(next), preview: nextPreview }, summary: name === 'set_shape' ? `Changed shape to ${shapeInfo(resolveShape(next)).name}` : name === 'update_surface' ? 'Applied a material texture' : name === 'update_product_info' ? 'Updated printed product information' : name === 'update_typography' ? 'Updated printed text and typography' : name === 'apply_template' ? 'Applied packaging template' : name === 'apply_style' ? 'Applied design style' : name === 'set_model_parts' ? `Added ${next.modelParts?.length || 0} model parts` : name === 'set_preview' ? 'Adjusted the preview' : 'Updated packaging design', fields }
 }

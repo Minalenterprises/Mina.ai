@@ -1791,3 +1791,12 @@ select option { background: #141418; color: var(--ink) }
   .route-loader { opacity: 1 }
   .thumb3d-rig { animation: none }
 }
+
+/* ── Template library: tabs, sectors, search, style swatches ── */
+.templates-sectors { flex-wrap: wrap; padding-top: 8px; }
+.templates-tabs { align-items: center; }
+.templates-tabs .filter-btn { display: inline-flex; align-items: center; gap: 6px; }
+.templates-search { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; background: var(--surface); color: var(--ink-mute); }
+.templates-search input { border: 0; outline: 0; background: transparent; font-size: .84rem; width: 160px; color: var(--ink); }
+.style-swatch { display: grid; grid-template-rows: 2fr 1fr 1fr; width: 44px; height: 54px; border-radius: 10px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--line); }
+.style-swatch i { display: block; }
