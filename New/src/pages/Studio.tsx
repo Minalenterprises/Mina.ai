@@ -31,8 +31,7 @@ import {
 } from 'lucide-react'
 import { Header } from '../components/Header'
 import { MinalMark } from '../components/Brand'
-import { PixelSky } from '../components/PixelSky'
-import { Composer } from '../components/Composer'
+import { BlankProject } from '../components/BlankProject'
 import { RouteLoader } from '../components/LoadingScreen'
 import { SiriOrb } from '../components/SiriGlow'
 import { SceneStage } from '../components/SceneStage'
@@ -256,7 +255,7 @@ export function Studio() {
 }
 
 function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
-  const { saveDesign, notify, storageAvailable, designs } = useStore()
+  const { saveDesign, notify, storageAvailable } = useStore()
   const [design, setDesign] = useState<Design>(initialDesign)
   const [input, setInput] = useState(initialDesign.chatStep === 0 ? initialDesign.brief : '')
   const [thinking, setThinking] = useState(false)
@@ -325,7 +324,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
     notify(direction === 'undo' ? 'Previous design restored' : 'Change restored')
   }
 
-  const send = async (text = input) => {
+  const send = async (text = input, directive?: string) => {
     const value = text.trim()
     if (!value || requestRef.current || uploading) return
     if (!isConfigured()) { notify('Connect your AI key in Admin → Settings to use the design assistant.', 'info'); return }
@@ -342,6 +341,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
     setShowArtwork(false); setShowSpecs(false); setShowType(false); setShowSurface(false); setShowTemplates(false); setShowCode(false)
     try {
       const history = currentMessages.filter(message => !message.error).map(message => ({ role: (message.role === 'assistant' ? 'model' : 'user') as 'user' | 'model', text: message.text, image: message.image }))
+      if (directive && history.length) history[history.length - 1] = { ...history[history.length - 1], text: `${history[history.length - 1].text}\n\n${directive}` }
       const result = await chatWithGemini(history, baseline, {
         signal: controller.signal, preview: initialPreview, onProgress: setProgress,
         onTool: activity => setActiveTools(tools => [...tools, activity]),
@@ -549,39 +549,15 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
       : templates.filter(t => (t.tag || 'Boxes').toLowerCase().includes(templateFilter.toLowerCase()))
 
   const isBlank = !started && !thinking && !design.messages.some(m => m.role === 'user')
-  const recent = designs.filter(d => d.id !== design.id && d.messages.some(m => m.role === 'user')).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 4)
   if (isBlank) return (
-    <div className="workspace-page sx sx-blank">
-      <Header workspace />
-      <PixelSky cell={22} skyline={false} />
-      <main className="sx-blank-main">
-        <h1 className="sx-blank-title"><span>What are we</span> <em>making?</em></h1>
-        <p className="sx-blank-sub">Describe it in a sentence. minal plans it, folds it and builds it in 3D.</p>
-        <div className="sx-blank-composer">
-          <Composer value={input} onChange={setInput} onSubmit={() => { const text = input.trim(); if (!text) return; setStarted(true); void send(text) }} />
-        </div>
-        <div className="sx-blank-chips">
-          {['Rigid gift box for a silver spoon', 'Kraft mailer for scented candles', 'Tall tea canister, matte navy', 'Paper shopping bag with rope handles'].map((idea, i) => (
-            <button key={idea} style={{ animationDelay: `${.45 + i * .07}s` }} onClick={() => setInput(idea)}>{idea}</button>
-          ))}
-        </div>
-        <button className="sx-blank-skip" onClick={() => setStarted(true)}>or start from a blank box →</button>
-        {recent.length > 0 && (
-          <section className="sx-recent">
-            <div className="sx-recent-head"><span>Recent</span><Link to="/projects">All projects →</Link></div>
-            <div className="sx-recent-row">
-              {recent.map((d, i) => (
-                <Link key={d.id} to={`/studio/${d.id}`} className="sx-recent-card" style={{ animationDelay: `${.6 + i * .08}s` }}>
-                  <span className="sx-recent-swatch" style={{ background: d.color }}><Box size={18} /></span>
-                  <strong>{d.name}</strong>
-                  <small>{d.category} · {new Date(d.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</small>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
-      </main>
-    </div>
+    <BlankProject
+      name={design.name === 'Untitled idea' ? 'Untitled project' : design.name}
+      onRename={name => patch({ name })}
+      value={input}
+      onChange={setInput}
+      onSkip={() => setStarted(true)}
+      onSubmit={(text, agent) => { setStarted(true); void send(text, agent ? '[Agent mode: plan and complete the whole design end to end. Choose structure, material, finish and typography yourself, apply every change with your tools, and do not stop to ask questions.]' : undefined) }}
+    />
   )
 
   return (
