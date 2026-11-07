@@ -10,6 +10,7 @@
     "smoke": "python scripts/smoke.py",
     "lint": "eslint .",
     "check:ai": "node scripts/check-ai.mjs",
+    "check:providers": "node scripts/check-providers.mjs",
     "check:shapes": "node scripts/check-shapes.mjs"
   },
   "dependencies": {
