@@ -27,7 +27,8 @@ import {
   Code2,
   Play,
   Terminal,
-  X, Square, Undo2, Redo2, Type, Paintbrush
+  X, Square, Undo2, Redo2, Type, Paintbrush,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { Header } from '../components/Header'
 import { MinalMark } from '../components/Brand'
@@ -546,88 +547,39 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
       : templates.filter(t => (t.tag || 'Boxes').toLowerCase().includes(templateFilter.toLowerCase()))
 
   return (
-    <div className="workspace-page realtime-studio">
+    <div className={`workspace-page realtime-studio sx ${thinking ? 'sx-thinking' : ''}`}>
       <Header workspace />
 
-      {/* Top bar with Breadcrumbs, Live Status, and Fast Action Bar */}
-      <div className="studio-topbar">
+      {/* Slim top bar */}
+      <div className="studio-topbar sx-bar">
         <div className="project-breadcrumb">
-          <Link to="/projects" aria-label="Back to projects">
-            <ArrowLeft size={17} />
-          </Link>
-          <span className="breadcrumb-divider" />
+          <Link to="/projects" aria-label="Back to projects" className="sx-back"><ArrowLeft size={16} /></Link>
           <span className="project-title-live">{design.name}</span>
-          <span className="project-status">{design.status}</span>
+          <span className="sx-status">{design.status}</span>
         </div>
-
-        <div className="studio-quick-tools" inert={thinking}>
-          <button className="button button-sm button-outline" aria-label="Undo design change" disabled={!undo.length} onClick={() => restore('undo')}><Undo2 size={15} /></button>
-          <button className="button button-sm button-outline" aria-label="Redo design change" disabled={!redo.length} onClick={() => restore('redo')}><Redo2 size={15} /></button>
-          <button className="button button-sm button-outline" onClick={() => { setShowArtwork(false); setShowType(!showType); setShowSurface(false); setShowSpecs(false); setShowCode(false) }}><Type size={15} /> Typography</button>
-          <button className="button button-sm button-outline" onClick={() => { setShowArtwork(false); setShowSurface(!showSurface); setShowType(false); setShowSpecs(false); setShowCode(false) }}><Paintbrush size={15} /> Textures & info</button>
-          <button className="button button-sm button-outline" onClick={() => { setShowArtwork(!showArtwork); setShowSurface(false); setShowType(false); setShowSpecs(false); setShowCode(false) }}><Paintbrush size={15} /> Print designs</button>
-          {/* Templates Button */}
-          <button
-            className={`button button-sm ${showTemplates ? 'button-dark' : 'button-outline'}`}
-            onClick={() => {
-              setShowArtwork(false)
-              setShowType(false)
-              setShowSurface(false)
-              setShowTemplates(!showTemplates)
-              setShowSpecs(false)
-              setShowCode(false)
-            }}
-          >
-            <ShoppingBag size={14} /> Templates ({templates.length})
-          </button>
-
-          {/* 3D Code Inspector */}
-          <button
-            className={`button button-sm ${showCode ? 'button-dark' : 'button-outline'}`}
-            onClick={() => {
-              setShowArtwork(false)
-              setShowType(false)
-              setShowSurface(false)
-              setShowCode(!showCode)
-              setShowSpecs(false)
-              setShowTemplates(false)
-            }}
-            title="Inspect or write custom Three.js 3D code"
-          >
-            <Code2 size={14} /> 3D Code {design.customCode ? '(Custom)' : ''}
-          </button>
-
-          {/* Quick Specs / Plan Drawer Toggle */}
-          <button
-            className={`button button-sm ${showSpecs ? 'button-dark' : 'button-outline'}`}
-            onClick={() => {
-              setShowArtwork(false)
-              setShowType(false)
-              setShowSurface(false)
-              setShowSpecs(!showSpecs)
-              setShowTemplates(false)
-              setShowCode(false)
-            }}
-          >
-            <Sliders size={14} /> {showSpecs ? 'Hide Specs' : 'Edit Specs'}
-          </button>
-
-          {/* 3D / 2D View Mode Switcher */}
-          <div className="view-toggle">
-            <button className={view === '3d' ? 'selected' : ''} onClick={() => setView('3d')}>
-              <Box size={14} /> 3D View
-            </button>
-            <button className={view === '2d' ? 'selected' : ''} onClick={() => setView('2d')}>
-              <Layers3 size={14} /> 2D Dieline
-            </button>
-          </div>
+        <div className="sx-seg" role="tablist" aria-label="Preview mode">
+          <span className="sx-seg-thumb" style={{ transform: `translateX(${view === '3d' ? 0 : 100}%)` }} />
+          <button role="tab" aria-selected={view === '3d'} className={view === '3d' ? 'on' : ''} onClick={() => setView('3d')}><Box size={14} /> 3D</button>
+          <button role="tab" aria-selected={view === '2d'} className={view === '2d' ? 'on' : ''} onClick={() => setView('2d')}><Layers3 size={14} /> Dieline</button>
         </div>
-
-        <span className={`saved-state ${!storageAvailable ? 'storage-warning' : ''}`}>
-          <span className="status-dot" />
-          {storageAvailable ? 'Live 3D sync' : 'Storage full'}
-        </span>
+        <div className="sx-bar-right">
+          <button className="sx-icon" aria-label="Undo design change" title="Undo" disabled={!undo.length || thinking} onClick={() => restore('undo')}><Undo2 size={15} /></button>
+          <button className="sx-icon" aria-label="Redo design change" title="Redo" disabled={!redo.length || thinking} onClick={() => restore('redo')}><Redo2 size={15} /></button>
+          <span className={`sx-sync ${!storageAvailable ? 'warn' : ''} ${thinking ? 'busy' : ''}`} title={storageAvailable ? 'Every change saves instantly' : 'Browser storage is full'}><i />{thinking ? 'Generating' : storageAvailable ? 'Saved' : 'Storage full'}</span>
+        </div>
       </div>
+
+      {/* Floating tool dock */}
+      <nav className="sx-dock" inert={thinking} aria-label="Design tools">
+        {([
+          ['Type', Type, showType, () => { setShowArtwork(false); setShowType(!showType); setShowSurface(false); setShowSpecs(false); setShowCode(false); setShowTemplates(false) }],
+          ['Material', Paintbrush, showSurface, () => { setShowArtwork(false); setShowSurface(!showSurface); setShowType(false); setShowSpecs(false); setShowCode(false); setShowTemplates(false) }],
+          ['Artwork', ImageIcon, showArtwork, () => { setShowArtwork(!showArtwork); setShowSurface(false); setShowType(false); setShowSpecs(false); setShowCode(false); setShowTemplates(false) }],
+          ['Templates', ShoppingBag, showTemplates, () => { setShowArtwork(false); setShowType(false); setShowSurface(false); setShowTemplates(!showTemplates); setShowSpecs(false); setShowCode(false) }],
+          ['Specs', Sliders, showSpecs, () => { setShowArtwork(false); setShowType(false); setShowSurface(false); setShowSpecs(!showSpecs); setShowTemplates(false); setShowCode(false) }],
+          ['Code', Code2, showCode, () => { setShowArtwork(false); setShowType(false); setShowSurface(false); setShowCode(!showCode); setShowSpecs(false); setShowTemplates(false) }],
+        ] as const).map(([label, Icon, on, act]) => <button key={label} className={on ? 'on' : ''} onClick={act} aria-pressed={on}><Icon size={17} strokeWidth={1.7} /><span>{label}</span></button>)}
+      </nav>
 
       <div className={`studio-layout ${!showChat ? 'chat-collapsed' : ''}`}>
         {/* Left Side: Real-time AI Chat Panel */}
@@ -813,14 +765,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                   {design.hasHandles && <span className="concept-tag tag-accent">HANDLES</span>}
                   {design.customCode && <span className="concept-tag tag-accent">CUSTOM 3D CODE</span>}
                 </div>
-                <div className="view-toggle">
-                  <button className={view === '3d' ? 'selected' : ''} onClick={() => setView('3d')}>
-                    <Box size={14} /> 3D
-                  </button>
-                  <button className={view === '2d' ? 'selected' : ''} onClick={() => setView('2d')}>
-                    <Layers3 size={14} /> 2D
-                  </button>
-                </div>
+
               </div>
 
               {view === '3d' || flatMode === 'projection' ? (
