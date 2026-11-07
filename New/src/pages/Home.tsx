@@ -1,10 +1,9 @@
 import { useState, lazy, Suspense } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowUpRight, ArrowRight, ArrowDown, Check, CheckCheck, Box, Layers3, MoveUpRight, Play, Plus, Minus, Sparkles, MousePointer2, MessageCircle, PencilLine, PackageCheck, Rotate3D, X } from 'lucide-react'
+import { ArrowUpRight, ArrowRight, ArrowDown, Check, Box, Layers3, MoveUpRight, Play, Plus, Minus, Sparkles, MousePointer2, MessageCircle, PencilLine, PackageCheck, Rotate3D, X } from 'lucide-react'
 import { Header } from '../components/Header'
 import { Brand, MinalMark } from '../components/Brand'
-import { SiriGlow } from '../components/SiriGlow'
 import { LoadingScreen } from '../components/LoadingScreen'
 import { examples, newDesign, type Example } from '../lib/types'
 import { useStore } from '../lib/store'
@@ -15,7 +14,6 @@ export function Home() {
   const navigate = useNavigate()
   const { saveDesign, openSupport } = useStore()
   const [idea, setIdea] = useState('')
-  const [ideaFocus, setIdeaFocus] = useState(false)
   const [view, setView] = useState<'render' | '3d' | '2d'>('render')
   const [filter, setFilter] = useState('All creations')
   const [faq, setFaq] = useState<number | null>(0)
@@ -37,14 +35,13 @@ export function Home() {
   return <div className="home-page">
     <Header />
     <main>
-      <div className="hero-aurora" aria-hidden="true"><span /><span /><span /></div>
       <section className="hero page-width">
         <div className="hero-copy">
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .55 }} className="intro-pill"><span className="status-dot" /> BIG IDEAS START WITH A LITTLE CHAT <ArrowUpRight size={13} /></motion.div>
           <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65, delay: .07 }}>Your idea.<br /><span className="hero-second-line">Made real.<span className="hero-asterisk"><MinalMark size={68} /></span></span></motion.h1>
           <motion.p className="hero-description" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65, delay: .14 }}>Meet your new creative partner. Turn that little<br className="desktop-br" /> idea into a product you can actually hold.<br className="desktop-br" /> Just start a conversation.</motion.p>
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65, delay: .21 }}>
-            <form className="idea-input" onFocus={() => setIdeaFocus(true)} onBlur={() => setIdeaFocus(false)} onSubmit={event => { event.preventDefault(); start() }}><SiriGlow active={ideaFocus || !!idea.trim()} variant="soft" intensity={idea.trim() ? 1 : .7} /><Sparkles size={19} strokeWidth={1.6} /><input aria-label="Describe your product idea" placeholder="I have an idea for…" value={idea} onChange={e => setIdea(e.target.value)} maxLength={600} /><button type="submit" aria-label="Start creating from your idea"><ArrowUpRight size={21} /></button></form>
+            <form className="idea-input" onSubmit={event => { event.preventDefault(); start() }}><Sparkles size={19} strokeWidth={1.6} /><input aria-label="Describe your product idea" placeholder="I have an idea for…" value={idea} onChange={e => setIdea(e.target.value)} maxLength={600} /><button type="submit" aria-label="Start creating from your idea"><ArrowUpRight size={21} /></button></form>
             <div className="idea-suggestions"><span>Try a little idea</span><button onClick={() => setIdea('A box for a spoon')}>A spoon box <ArrowUpRight size={11} /></button><button onClick={() => setIdea('A minimal skincare carton')}>Skincare packaging <ArrowUpRight size={11} /></button></div>
             <div className="hero-actions"><button className="button button-lime" onClick={start}>Bring your idea to life <ArrowUpRight size={18} /></button><a href="#how-it-works" className="watch-link"><span className="play-icon"><Play size={10} fill="currentColor" /></span> See how it works</a></div>
             <div className="hero-footnote"><span><Check size={12} /> No design skills needed</span><span className="tiny-divider" /><span><Check size={12} /> Free to explore</span></div>
@@ -57,8 +54,6 @@ export function Home() {
             <span className="color-label"><span style={{ background: '#b9c9aa' }} /> Sage, with a little soul.</span>
             <div className="preview-bottomline"><div className="view-toggle"><button className={view !== '2d' ? 'selected' : ''} onClick={() => setView(view === 'render' ? '3d' : 'render')}><Box size={13} /> 3D view</button><button className={view === '2d' ? 'selected' : ''} onClick={() => setView('2d')}><Layers3 size={13} /> 2D view</button></div><button className="rotate-hint" onClick={() => setView('3d')}><Rotate3D size={15} /> {view === '3d' ? 'Drag to explore' : 'A whole new perspective'}</button></div>
           </div>
-          <motion.div className="floating-chat" initial={{ opacity: 0, y: 18, rotate: -3 }} animate={{ opacity: 1, y: 0, rotate: -3 }} transition={{ delay: .6, duration: .6 }}><div className="floating-chat-title"><span className="chat-mini-mark"><MinalMark size={14} /></span><span>A conversation. A creation.</span><span className="chat-mini-dots">•••</span></div><div className="sample-user">A box for a spoon. But make it special. <CheckCheck size={12} /></div><div className="sample-ai">A little everyday magic. I’m on it.</div></motion.div>
-          <div className="handwritten-note">from “what if” to right here<svg width="63" height="36" viewBox="0 0 63 36" fill="none" aria-hidden="true"><path d="M2 4c12 26 32 27 52 14m-13 0 15-3-4 14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg></div>
         </motion.div>
       </section>
       <div className="possibility-strip page-width"><span>A LITTLE LESS COMPLICATED. A LOT MORE POSSIBLE.</span><div><MessageCircle size={16} /> Dream it.<i /><PencilLine size={16} /> Shape it.<i /><Box size={16} /> See it.<i /><PackageCheck size={16} /> Make it.</div><a href="#how-it-works" aria-label="Discover how minal works"><ArrowDown size={19} /></a></div>
