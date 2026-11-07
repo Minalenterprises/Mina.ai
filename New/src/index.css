@@ -2406,3 +2406,8 @@ html[data-theme='dark'] .composer { box-shadow: 0 1px 0 rgba(255,255,255,.04) in
 .hz-names h2 { width: 100%; text-align: center }
 .hz-boxwrap, .hz-wash-box { transform-style: preserve-3d }
 .hz-boxwrap { margin-top: 6vh } .hz-prompt { top: 13%; z-index: 3 } .hz-specs { right: -12px; bottom: 9% } .hz-wash-box { transform: translateY(12vh) scale(1.15) }
+
+/* Font lock: one serif, one sans, everywhere on the homepage */
+.hz, .hz input, .hz textarea, .hz button { font-family: 'Plus Jakarta Sans', system-ui, sans-serif }
+.hz h1, .hz h1 *, .hz h2, .hz h2 *, .hz-statement p, .hz-statement p *, .hz-chapter span, .fb-label { font-family: 'Instrument Serif', Georgia, serif !important; font-weight: 400 !important; font-synthesis: none }
+.hz em { font-family: 'Instrument Serif', Georgia, serif; font-weight: 400 }
