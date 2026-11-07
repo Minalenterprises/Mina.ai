@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS } from '../../ai-settings'
-import { AIError, newId, parseEvent, readSSE, requestWithRetry, type Classified, type ProviderSession, type SessionInit, type ToolOutcome, type TurnHooks, type TurnResult } from '../core'
+import { AIError, classifyCustom, corsHint, isJsonResponse, newId, parseEvent, readSSE, requestWithRetry, TOOLS_UNSUPPORTED, toolsUnsupportedError, type Classified, type Endpoint, type ProviderSession, type SessionInit, type ToolOutcome, type TurnHooks, type TurnResult } from '../core'
 
 type Part = { text?: string; thought?: boolean; thoughtSignature?: string; functionCall?: { name: string; args: unknown; id?: string }; [key: string]: unknown }
 type Content = { role: 'user' | 'model'; parts: Part[] }
@@ -46,7 +46,7 @@ function mergeParts(chunks: Part[]): Part[] {
   return merged
 }
 
-async function readStream(body: ReadableStream<Uint8Array>, signal: AbortSignal, onText?: (text: string) => void): Promise<ApiResponse> {
+async function readStream(body: ReadableStream<Uint8Array>, signal: AbortSignal, onText?: (text: string) => void, label = LABEL): Promise<ApiResponse> {
   let text = ''
   const parts: Part[] = []
   let finishReason: string | undefined, blockReason: string | undefined, streamError: string | undefined
@@ -61,15 +61,25 @@ async function readStream(body: ReadableStream<Uint8Array>, signal: AbortSignal,
       parts.push(part)
       if (part.text && !part.thought) { text += part.text; onText?.(text) }
     }
-  }, LABEL)
+  }, label)
   if (streamError && !parts.length) throw new AIError(streamError)
   return { candidates: [{ content: { role: 'model', parts: mergeParts(parts) }, finishReason }], promptFeedback: blockReason ? { blockReason } : undefined }
 }
 
+/** Google itself, or a custom Gemini-format endpoint (`base` is the API root such as …/v1beta). */
+type Target = { models: string; label: string; headers: () => Record<string, string>; classify: (model: string) => (status: number, raw: unknown, headers: Headers | undefined) => Classified; networkHint?: string; custom: boolean }
+function target(apiKey: string, endpoint?: Endpoint): Target {
+  if (!endpoint) return { models: API, label: LABEL, headers: () => ({ 'x-goog-api-key': apiKey }), classify, custom: false }
+  return { models: `${endpoint.base}/models`, label: endpoint.label, headers: endpoint.headers, classify: classifyCustom(endpoint.label), networkHint: corsHint(endpoint.base), custom: true }
+}
+const modelPath = (model: string) => model.replace(/^models\//, '').split('/').map(encodeURIComponent).join('/')
+
 const imagePart = (image: { mimeType: string; data: string }): Part => ({ inlineData: { mimeType: image.mimeType, data: image.data } })
 
 export function createSession(init: SessionInit): ProviderSession {
-  const { settings, apiKey, system, stream } = init
+  const { settings, apiKey, system } = init
+  let stream = init.stream
+  const to = target(apiKey, init.endpoint)
   let model = init.model || DEFAULT_SETTINGS.model
   const contents: Content[] = init.messages.map(message => {
     const image = message.image?.match(/^data:(image\/(?:png|jpeg|webp));base64,(.+)$/s)
@@ -80,13 +90,28 @@ export function createSession(init: SessionInit): ProviderSession {
 
   async function call(hooks: TurnHooks): Promise<ApiResponse> {
     const body = { systemInstruction: { parts: [{ text: system }] }, contents, tools: [{ functionDeclarations }], toolConfig: { functionCallingConfig: { mode: 'AUTO' } }, generationConfig: { ...(!model.startsWith('gemini-3') ? { temperature: settings.temperature } : {}), maxOutputTokens: settings.maxOutputTokens }, ...(safetySettings ? { safetySettings } : {}) }
-    const response = await requestWithRetry({
-      url: `${API}/${encodeURIComponent(model)}:${stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`,
-      init: { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify(body) },
-      signal: hooks.signal, label: LABEL, onProgress: hooks.onProgress, classify: classify(model),
+    const send = () => requestWithRetry({
+      url: `${to.models}/${modelPath(model)}:${stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`,
+      init: { method: 'POST', headers: { 'Content-Type': 'application/json', ...to.headers() }, body: JSON.stringify(body) },
+      signal: hooks.signal, label: to.label, onProgress: hooks.onProgress, networkHint: to.networkHint, classify: to.classify(model),
     })
-    if (stream && response.body) return readStream(response.body, hooks.signal, hooks.onText)
-    return await response.json() as ApiResponse
+    let response: Response
+    try { response = await send() } catch (error) {
+      if (!(to.custom && stream && error instanceof AIError && (error.unsupported === 'stream' || error.status === 404))) throw error
+      // Custom servers without the streaming endpoint are asked again without it.
+      stream = false
+      response = await send()
+    }
+    if (stream && response.body && !isJsonResponse(response)) {
+      try { return await readStream(response.body, hooks.signal, hooks.onText, to.label) } catch (error) {
+        if (to.custom && error instanceof AIError && TOOLS_UNSUPPORTED.test(error.message)) throw toolsUnsupportedError(to.label, model)
+        throw error
+      }
+    }
+    const data = await response.json() as ApiResponse
+    const reply = (data.candidates?.[0]?.content?.parts || []).filter(part => part.text && !part.thought).map(part => part.text).join('')
+    if (init.stream && reply.trim()) hooks.onText?.(reply)
+    return data
   }
 
   return {
@@ -96,7 +121,7 @@ export function createSession(init: SessionInit): ProviderSession {
         data = await call(hooks)
       } catch (error) {
         // A retired or mistyped model falls back once to the recommended default.
-        if ((error as AIError).modelMissing && model !== DEFAULT_SETTINGS.model) {
+        if (!to.custom && (error as AIError).modelMissing && model !== DEFAULT_SETTINGS.model) {
           model = DEFAULT_SETTINGS.model
           hooks.onProgress?.(`Switching to ${model}…`)
           data = await call(hooks)
@@ -132,22 +157,35 @@ export function createSession(init: SessionInit): ProviderSession {
   }
 }
 
-export async function testKey(apiKey: string, model: string): Promise<{ success: boolean; error?: string }> {
+export async function testKey(apiKey: string, model: string, endpoint?: Endpoint): Promise<{ success: boolean; error?: string }> {
+  const to = target(apiKey, endpoint)
   try {
-    const response = await fetch(`${API}/${encodeURIComponent(model)}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Reply hello.' }] }] }), signal: AbortSignal.timeout(15000) })
+    const tools = to.custom ? { tools: [{ functionDeclarations: [{ name: 'ping', description: 'Connectivity check. Do not call.' }] }] } : {}
+    const init = { method: 'POST', headers: { 'Content-Type': 'application/json', ...to.headers() }, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Reply hello.' }] }], ...tools }) }
+    const url = `${to.models}/${modelPath(model)}:generateContent`
+    const response = to.custom
+      ? await requestWithRetry({ url, init, signal: AbortSignal.timeout(30000), label: to.label, attempts: 1, timeoutMs: 30000, networkHint: to.networkHint, classify: to.classify(model) })
+      : await fetch(url, { ...init, signal: AbortSignal.timeout(15000) })
     const data = await response.json()
     return response.ok && data.candidates?.[0]?.content ? { success: true } : { success: false, error: data.error?.message || 'No usable AI response.' }
   } catch (error) { return { success: false, error: error instanceof Error ? error.message : 'Network error' } }
 }
 
-export async function listModels(apiKey: string, signal?: AbortSignal) {
+export async function listModels(apiKey: string, signal?: AbortSignal, endpoint?: Endpoint) {
+  const to = target(apiKey, endpoint)
   const models: { id: string; name: string }[] = []
   let pageToken: string | undefined
   for (let page = 0; page < 5; page++) {
-    const response = await fetch(`${API}?pageSize=100${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`, { headers: { 'x-goog-api-key': apiKey }, signal: AbortSignal.any([signal || new AbortController().signal, AbortSignal.timeout(15000)]) })
-    const data = await response.json()
-    if (!response.ok) throw new AIError(data.error?.message || 'Could not list models.')
-    for (const m of data.models || []) if (/^models\/gemini/.test(m.name) && !/image|tts|embedding|live|audio/i.test(m.name) && m.supportedGenerationMethods?.includes('generateContent')) models.push({ id: m.name.replace(/^models\//, ''), name: m.displayName || m.name })
+    let response: Response
+    try {
+      response = await fetch(`${to.models}?pageSize=100${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`, { headers: to.headers(), signal: AbortSignal.any([signal || new AbortController().signal, AbortSignal.timeout(15000)]) })
+    } catch (error) { throw new AIError(`Couldn’t reach ${to.label} (${error instanceof Error ? error.message : 'network error'}). ${to.networkHint || 'Check your connection.'}`) }
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) throw new AIError(data.error?.message || `Could not list ${to.label} models (${response.status}).`)
+    for (const m of data.models || []) {
+      const usable = m.supportedGenerationMethods ? m.supportedGenerationMethods.includes('generateContent') : true
+      if (usable && (to.custom || (/^models\/gemini/.test(m.name) && !/image|tts|embedding|live|audio/i.test(m.name)))) models.push({ id: String(m.name).replace(/^models\//, ''), name: m.displayName || m.name })
+    }
     pageToken = data.nextPageToken
     if (!pageToken) break
   }

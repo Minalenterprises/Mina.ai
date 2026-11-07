@@ -1,3 +1,4 @@
+import { HeroRenders } from '../components/HeroRenders'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, useScroll, useTransform, useMotionValueEvent, useSpring, type MotionValue } from 'framer-motion'
@@ -27,6 +28,7 @@ export function Home() {
     <main>
       <section className="sky-hero hz-hero">
         <PixelSky />
+        <HeroRenders />
         <div className="sky-hero-inner">
           <h1 className="hz-title"><SplitWords text="Your little idea," delay={0.1} /><br /><em><SplitWords text="made real." delay={0.35} /></em></h1>
           <motion.p className="hero-description" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .9, delay: .6, ease }}>Describe it in a sentence. minal plans it, designs it and builds it in 3D.</motion.p>

@@ -51,6 +51,7 @@ export function Header({ workspace = false }: { workspace?: boolean }) {
         <div className="header-actions">
           <button className="theme-toggle icon-button" onClick={toggle} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} title={theme === 'dark' ? 'Light mode' : 'Dark mode'}>{theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}</button>
           {!workspace && <Link className="text-link projects-nav" to="/projects">My projects</Link>}
+          {!workspace && <Link className="header-signin" to="/login" onClick={close}>Sign in</Link>}
           <Link className="button button-lime button-sm glow-button" to="/studio" onClick={close}>{workspace ? <><Plus size={16} /> New project</> : <>Let's create <ArrowUpRight size={16} /></>}</Link>
           <button className="mobile-menu icon-button" aria-label={menu ? 'Close menu' : 'Open menu'} aria-expanded={menu} onClick={() => setMenu(!menu)}>{menu ? <X size={22} /> : <Menu size={22} />}</button>
         </div>

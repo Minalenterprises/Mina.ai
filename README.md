@@ -9,6 +9,7 @@ Real-time 3D packaging design, procedural CAD dieline generation, and AI-assiste
 - CorelDRAW Export (.cdr): Native binary PKZIP CorelDRAW dielines with 1:1 millimeter scale, Red (#FF0000) 0.076mm hairline cut rules, and Cyan (#00AEEF) crease rules.
 - AutoCAD / Laser Die Export (.dxf): Industry-standard DXF R12 dielines for CNC laser cutters, steel-rule die makers, and CAD software.
 - AI Packaging Partner: multi-provider AI with real tool calling and streaming. Supported providers: **Google Gemini**, **OpenAI** (Responses API), **Anthropic Claude** (Messages API, direct browser access) and **OpenRouter** (hundreds of tool-capable models). Pick the provider, key and model in Admin → AI Settings; every provider drives the same 19 validated design tools.
+- Custom AI providers: add your own providers in Admin → AI Settings → **Add custom provider** — any OpenAI-compatible (Chat Completions), Anthropic Messages or Gemini-format API, with base URL, optional API key (none needed for local Ollama / LM Studio), Bearer / custom-header / no auth, extra headers, free-text model ID plus **Load models** and **Test**. Presets prefill verified base URLs for Groq, Together, Mistral, DeepSeek, xAI, Fireworks, Perplexity, Z.ai (GLM), Ollama Cloud, Ollama and LM Studio. Custom providers reuse the built-in adapters (real tool calling, streaming, abort, retries and timeouts), fall back to non-streaming or text-only when a server can't stream or take images, and explain CORS and missing tool support in plain words.
 - Magic Build: describe a product in one sentence (e.g. "matte black luxury perfume box with gold foil logo") and the AI picks the shape, dimensions, materials, texture, colours, typography and artwork, building it live in the 3D studio. Start it from Home or from the Studio chat.
 - Compact live AI status: a short animated status line ("Thinking…", "Applying edits…") while the AI works, then a one-line summary such as "Edited: colour · front text · texture" plus two watermarked screenshots of the result (click to enlarge and download). Raw tool calls stay out of the chat (console debug only).
 - Production Templates: Built-in library of retail bags, folding cartons, luxury presentation boxes, and mailers.
@@ -19,7 +20,7 @@ Real-time 3D packaging design, procedural CAD dieline generation, and AI-assiste
   - `New/src/pages/Studio.tsx`: Real-time studio workspace.
   - `New/src/components/ProductScene.tsx`: 3D procedural Three.js rendering engine and code sandbox.
   - `New/src/lib/gemini.ts`: AI assistant entry points (`chatWithAI`, `chatWithGemini`).
-  - `New/src/lib/ai/`: provider-neutral agent loop, tool runner, prompt compaction and one lazy-loaded adapter per provider (`providers/gemini.ts`, `openai.ts`, `anthropic.ts`, `openrouter.ts`).
+  - `New/src/lib/ai/`: provider-neutral agent loop, tool runner, prompt compaction and one lazy-loaded adapter per API format (`providers/gemini.ts`, `openai.ts`, `anthropic.ts`, `chat-completions.ts` shared by OpenRouter and OpenAI-compatible custom providers, `openrouter.ts`); `custom.ts` turns a saved custom provider into an endpoint (URL, auth, headers).
   - `New/src/lib/cdr-export.ts`: CorelDRAW export pipeline.
   - `New/src/lib/dxf-export.ts`: AutoCAD DXF packaging CAD exporter.
   - `New/scripts/generate-cdr.ps1`: CorelDRAW COM automation engine for native binary .cdr files.
@@ -86,6 +87,8 @@ Planned work, in rough priority order. Items get checked off as they ship.
 ### 6. More features
 - [x] AI design generator: describe a product and get full artwork, colors and texture picks (Magic Build)
 - [x] Multi-provider AI: Gemini, OpenAI, Anthropic Claude and OpenRouter with per-provider keys, models and key tests
+- [x] Custom AI providers: add any OpenAI-compatible, Anthropic- or Gemini-format endpoint (presets for Groq, Together, Mistral, DeepSeek, xAI, Fireworks, Perplexity, Z.ai, Ollama Cloud, Ollama, LM Studio) with custom auth, headers, model loading and a live test
+- [ ] Optional small proxy for providers that block direct browser (CORS) calls
 - [x] Compact live AI status line, change summaries and watermarked result screenshots instead of raw tool output
 - [x] Faster AI: streaming replies, frame-batched UI updates, cancel-on-new-message, parallel read-only tools, compacted prompts and history, timeouts and retry with backoff
 - [ ] Template marketplace with ready-made designs for every category

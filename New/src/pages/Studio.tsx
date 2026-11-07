@@ -48,7 +48,7 @@ import { getProductInfo } from '../lib/product-info'
 import { DESIGN_TOOL_DECLARATIONS } from '../lib/design-tools'
 import { TypographyEditor } from '../components/TypographyEditor'
 import { downloadFile, readImage, safeName } from '../lib/utils'
-import { isConfigured, loadSettings, PROVIDERS } from '../lib/ai-settings'
+import { isConfigured, loadSettings, providerName as getProviderName } from '../lib/ai-settings'
 import { chatWithAI } from '../lib/gemini'
 import { changeSummary } from '../lib/ai/labels'
 import { useFrameThrottle } from '../lib/use-frame-throttle'
@@ -271,6 +271,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
   const [buildPrompt, setBuildPrompt] = useState('')
   const [buildAgent, setBuildAgent] = useState(false)
   const buildRef = useRef(false)
+  const buildRetried = useRef(false)
   useEffect(() => { buildRef.current = build !== 'off' }, [build])
   const sawThinking = useRef(false)
   const [uploading, setUploading] = useState(false)
@@ -286,7 +287,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
   const [codeDraft, setCodeDraft] = useState(design.customCode || '')
   const [downloadMenu, setDownloadMenu] = useState(false)
   const aiActive = isConfigured()
-  const providerName = aiActive ? PROVIDERS[loadSettings().provider].name : ''
+  const providerName = aiActive ? getProviderName(loadSettings()) : ''
   const [progress, setProgress] = useState('')
   const [streamText, setStreamText] = useState('')
   /** Drives the AI-cursor overlay: each completed tool call = one extra "click". */
@@ -402,7 +403,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
   const send = async (text = input, mode: 'chat' | 'magic' = 'chat') => {
     const value = text.trim()
     if (!value || uploading) return
-    if (!isConfigured()) { notify('Connect your AI key in Admin → Settings to use the design assistant.', 'info'); return }
+    if (!isConfigured()) { notify('Finish setting up your AI provider in Admin → Settings to use the design assistant.', 'info'); return }
     // A new message replaces the running request: cancel it, restore its starting design, then continue from there.
     const superseding = !!requestRef.current
     if (superseding) {
@@ -492,6 +493,9 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
     await run
   }
 
+  const sendRef = useRef(send)
+  sendRef.current = send
+
   const magicBuild = (sentence = input) => {
     if (!sentence.trim()) { setMagicMode(true); textareaRef.current?.focus(); return }
     void send(sentence, 'magic')
@@ -505,7 +509,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
       setSearchParams({}, { replace: true })
       const brief = design.brief.trim()
       if (!brief) return
-      if (!isConfigured()) { setMagicMode(true); notify('Connect your AI key in Admin → Settings to use Magic Build.', 'info'); return }
+      if (!isConfigured()) { setMagicMode(true); notify('Finish setting up your AI provider in Admin → Settings to use Magic Build.', 'info'); return }
       setStarted(true); startBuild(brief, true)
     }, 0)
     return () => clearTimeout(timer)
@@ -689,7 +693,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
 
 
   const startBuild = (text: string, agent = false) => {
-    setBuildPrompt(text); setBuildAgent(agent); setShots([]); setView('3d'); setBuild('building'); buildRef.current = true; sawThinking.current = false
+    setBuildPrompt(text); setBuildAgent(agent); buildRetried.current = false; setShots([]); setView('3d'); setBuild('building'); buildRef.current = true; sawThinking.current = false
     void send(text, agent ? 'magic' : 'chat')
   }
   const captureShots = async (): Promise<Shot[]> => {
@@ -734,7 +738,14 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
     if (!sawThinking.current) return
     sawThinking.current = false
     const last = design.messages[design.messages.length - 1]
-    if (last?.error) { setBuild('error'); return }
+    if (last?.error) {
+      // One quiet automatic retry before showing an error (not when the user pressed stop).
+      if (!buildRetried.current && !/^Stopped/.test(last.text)) { buildRetried.current = true; sawThinking.current = false
+        setDesign(c => ({ ...c, messages: c.messages.slice(0, -2) }))
+        window.setTimeout(() => void sendRef.current(buildPrompt, buildAgent ? 'magic' : 'chat'), 60); return }
+      setBuild('error'); return
+    }
+    buildRetried.current = false
     // Fallback naming: if the AI left the project untitled, name it from the prompt.
     if (/^untitled (idea|project)$/i.test(design.name.trim()) && buildPrompt.trim()) {
       const words: string[] = buildPrompt.replace(/^(an?|the|make|create|design|build)\s+/i, '').replace(/[^\p{L}\p{N}\s&'-]/gu, '').split(/\s+/).filter(Boolean)

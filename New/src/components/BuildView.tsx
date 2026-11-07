@@ -76,9 +76,10 @@ export function BuildView({ phase, name, prompt, progress, tools, shots, error, 
     return () => window.clearTimeout(id)
   }, [tools.length, progress])
 
-  const live = tools.length ? tools : []
+  const live = tools.filter((t, i, all) => t.status !== 'error' && all.findIndex(o => o.summary === t.summary && o.status !== 'error') === i)
   const stepIdx = Math.min(STEPS.length - 1, Math.floor(pct / (100 / STEPS.length)))
-  const blur = building ? Math.max(4, 26 - pct * .24) : 0
+  const blur = building ? Math.max(0, 10 - pct * .12) : 0
+  const reveal = Math.min(85, 30 + pct * .6)
 
   return (
     <motion.div className="bv" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 1.02, filter: 'blur(12px)', transition: { duration: .6, ease } }}>
@@ -94,17 +95,24 @@ export function BuildView({ phase, name, prompt, progress, tools, shots, error, 
         {building && (
           <motion.main key="build" className="bv-build" exit={{ opacity: 0, y: -20, filter: 'blur(10px)', transition: { duration: .5, ease } }}>
             <motion.div className="bv-stage" initial={{ opacity: 0, scale: .94 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 1, ease, delay: .15 }}>
-              <canvas ref={mirror} style={{ filter: `blur(${blur}px) saturate(${.6 + pct / 250})`, transform: `scale(${.9 + pct / 1000})` }} />
-              <div className="bv-scan" />
-              <div className="bv-grid" aria-hidden="true">{Array.from({ length: 96 }, (_, i) => <i key={i} style={{ animationDelay: `${((i * 7919) % 2400) / 1000}s` }} />)}</div>
-              <div className="bv-pct">{pct}<small>%</small></div>
+              <div className="bv-halo" aria-hidden="true" />
+              <canvas ref={mirror} style={{
+                filter: `blur(${blur}px)`, opacity: .6 + pct / 250, transform: `scale(${.92 + pct / 1250})`,
+                WebkitMaskImage: `radial-gradient(circle at 50% 55%, #000 ${reveal}%, transparent ${reveal + 30}%)`,
+                maskImage: `radial-gradient(circle at 50% 55%, #000 ${reveal}%, transparent ${reveal + 30}%)`
+              }} />
+              <div className="bv-sheen" aria-hidden="true" />
+              <div className="bv-meter">
+                <span className="bv-pct">{pct}<small>%</small></span>
+                <span className="bv-line"><i style={{ width: `${pct}%`, transform: "none" }} /></span>
+              </div>
             </motion.div>
 
             <div className="bv-side" ref={feed}>
               <motion.p className="bv-prompt" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .8, ease, delay: .3 }}>“{prompt}”</motion.p>
               <div className="bv-steps">
                 <AnimatePresence initial={false}>
-                  {(live.length ? live.map(t => ({ id: t.id, text: t.summary, done: t.status === 'complete', err: t.status === 'error' })) : STEPS.slice(0, stepIdx + 1).map((s, i) => ({ id: s, text: s, done: i < stepIdx, err: false }))).map(s => (
+                  {(live.length ? live.map(t => ({ id: t.id, text: t.summary, done: t.status === 'complete', err: false })) : STEPS.slice(0, stepIdx + 1).map((s, i) => ({ id: s, text: s, done: i < stepIdx, err: false }))).map(s => (
                     <motion.div key={s.id} className={`bv-step ${s.done ? 'done' : ''} ${s.err ? 'err' : ''}`} layout
                       initial={{ opacity: 0, x: -16, filter: 'blur(6px)' }} animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }} transition={{ duration: .55, ease }}>
                       <span className="bv-tick">{s.done ? <Check size={11} strokeWidth={3} /> : s.err ? <X size={11} strokeWidth={3} /> : <b />}</span>

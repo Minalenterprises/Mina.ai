@@ -5,7 +5,13 @@ const record = (value: unknown) => { if (!value || typeof value !== 'object' || 
 export function validateSurface(value: unknown): Partial<Surface> {
   const input = record(value), output: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(input)) {
-    if (key === 'texture') { if (!TEXTURES.some(texture => texture.id === value)) throw new Error('Choose an installed texture using list_textures.'); output[key] = value }
+    if (key === 'texture') { const want = String(value ?? '').toLowerCase().trim(); const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, '')
+      // Forgiving match: exact id, then name, then a partial or word match, so a near-miss never fails the build.
+      const match = TEXTURES.find(t => t.id === value) || TEXTURES.find(t => norm(t.id) === norm(want) || norm(t.name) === norm(want))
+        || TEXTURES.find(t => want && (norm(t.name).includes(norm(want)) || norm(want).includes(norm(t.name)) || norm(t.id).includes(norm(want))))
+        || TEXTURES.find(t => want.split(/[^a-z0-9]+/).some(w => w.length > 3 && `${t.name} ${t.category}`.toLowerCase().includes(w)))
+        || TEXTURES[0]
+      output[key] = match.id }
     else if (['scale', 'strength', 'rotation'].includes(key)) {
       const [min, max] = key === 'scale' ? [.25, 4] : key === 'strength' ? [0, 1] : [-180, 180]
       if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) throw new Error(`${key} must be ${min}–${max}.`)

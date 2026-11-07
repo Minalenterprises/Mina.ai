@@ -11,6 +11,7 @@ import { PixelSky } from './components/PixelSky'
 const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })))
 const Studio = lazy(() => import('./pages/Studio').then(m => ({ default: m.Studio })))
 const Projects = lazy(() => import('./pages/Projects').then(m => ({ default: m.Projects })))
+const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })))
 const Admin = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })))
 
 const BOOT_KEY = 'mina:booted'
@@ -54,6 +55,9 @@ function AnimatedRoutes() {
             <Route path="/studio/:id" element={<Studio />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Login />} />
+            <Route path="/forgot" element={<Login />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
