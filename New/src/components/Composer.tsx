@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowUp, ImagePlus, Box, Cylinder, Package, ChevronDown, Sparkles } from 'lucide-react'
+import { ArrowUp, Box, Cylinder, Package, ChevronDown } from 'lucide-react'
+import { PixelImage, PixelSpark } from './PixelIcons'
 
 const IDEAS = ['a gift box for a silver spoon', 'a minimal skincare carton', 'a matcha tea canister', 'a candle box that feels like a hug', 'packaging for handmade soap']
 const TYPES = [{ id: 'Box', icon: Box }, { id: 'Carton', icon: Package }, { id: 'Canister', icon: Cylinder }] as const
@@ -71,8 +72,8 @@ export function Composer({ value, onChange, onSubmit }: Props) {
               </motion.div>
             )}</AnimatePresence>
           </div>
-          <button type="button" className="composer-chip composer-icon" aria-label="Add a reference image" title="Add a reference image"><ImagePlus size={16} /></button>
-          <span className="composer-hint"><Sparkles size={13} /> AI plans, designs & builds it in 3D</span>
+          <button type="button" className="composer-chip composer-icon" aria-label="Add a reference image" title="Add a reference image"><PixelImage size={15} /></button>
+          <span className="composer-hint"><PixelSpark size={12} /> Plans, designs & builds it in 3D</span>
         </div>
         <motion.button type="submit" className="composer-send" aria-label="Start creating" whileTap={{ scale: .92 }} data-ready={value.trim().length > 0}><ArrowUp size={19} strokeWidth={2.4} /></motion.button>
       </div>
