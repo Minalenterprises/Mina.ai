@@ -1,3 +1,3 @@
 import { Link } from 'react-router-dom'
 export function MinalMark({ size = 29, className = '' }: { size?: number; className?: string }) { return <svg className={className} width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M16 3v26M4.74 9.5l22.52 13M4.74 22.5l22.52-13" stroke="currentColor" strokeWidth="5" strokeLinecap="round" /></svg> }
-export function Brand({ light = false }: { light?: boolean }) { return <Link to="/" className={`brand ${light ? 'brand-light' : ''}`} aria-label="minal.ai home"><MinalMark /><span>minal<span className="brand-dot">.</span>ai</span></Link> }
+export function Brand({ light = false }: { light?: boolean }) { return <Link to="/" className={`brand ${light ? 'brand-light' : ''}`} aria-label="minal.ai home"><MinalMark className="brand-mark" /><span>minal<span className="brand-dot">.</span>ai</span></Link> }
