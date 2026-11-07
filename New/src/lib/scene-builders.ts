@@ -559,7 +559,7 @@ function tubeWall(r: number, h: number, t: number) {
   return [V(r, 0), V(r, h - t * .6), V(r - t * .15, h), V(r - t * .85, h), V(r - t, h - t * .6), V(r - t, t), V(0.0001, t)]
 }
 
-function buildRound(ctx: BuildContext, shape: 'canister' | 'tube' | 'bottle' | 'jar' | 'lathe'): BuiltModel {
+function buildRound(ctx: BuildContext, shape: 'canister' | 'tube' | 'bottle' | 'jar' | 'lathe' | 'hat-box' | 'cone'): BuiltModel {
   const { mats, design, scale } = ctx, h = ctx.h, root = new THREE.Group()
   const L = roundLayout(design)
   const R = L.R * scale, t = Math.min(ctx.t, R * .12)
@@ -575,7 +575,17 @@ function buildRound(ctx: BuildContext, shape: 'canister' | 'tube' | 'bottle' | '
     opens = true
     setOpen = v => { const up = smooth(0, .6, v), side = smooth(.35, 1, v); cap.position.set(-side * R * 1.25, closedY + up * lift - side * lift * .35, -side * R * .5); cap.rotation.set(0, 0, side * .55) }
   }
-  if (shape === 'canister' || shape === 'tube') {
+  if (shape === 'cone') {
+    // Open cone, tip at the bottom; the print is a conical band so it lies on the sloped wall.
+    const coneMat = mats.main.clone(); coneMat.side = THREE.DoubleSide
+    root.add(lathe([V(0.0001, 0), V(R, h), V(R + t * .6, h + t * .3)], coneMat, 'cone wall'))
+    const [y0, y1] = labelBand, rBottom = R * y0 / h + .004, rTop = R * y1 / h + .004
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBottom, (y1 - y0) * .92, 96, 1, true, -ROUND_LABEL_ARC / 2, ROUND_LABEL_ARC), ctx.label('front', (rTop + rBottom) / 2 * ROUND_LABEL_ARC, (y1 - y0) * .92))
+    band.name = 'front print'; band.renderOrder = 2; band.position.y = (y0 + y1) / 2
+    root.add(band)
+    return { root, setOpen: () => {}, opens: false, info: { back: { kind: 'round', radius: R * .72, height: (y1 - y0) * .7, y: (y0 + y1) / 2 } } }
+  }
+  if (shape === 'canister' || shape === 'tube' || shape === 'hat-box') {
     root.add(lathe(tubeWall(R, h, t), mats.main, 'tube wall'))
     const liningMat = mats.inner.clone(); liningMat.side = THREE.BackSide
     root.add(lathe([V(R - t * 1.01, t), V(R - t * 1.01, h - t)], liningMat, 'lining'))
@@ -592,7 +602,7 @@ function buildRound(ctx: BuildContext, shape: 'canister' | 'tube' | 'bottle' | '
       cap.add(lathe([V(rc - t * .6, -capH / 2), V(rc - t * .6, capH / 2 - t)], capLining, 'cap lining'))
       if (shape === 'tube') cap.add(roundLabel(ctx, 'lid', rc + .003, capH * .55, 1.4))
       else { const print = labelPlane(ctx, 'lid', rc * 1.25, rc * 1.25); print.rotation.x = -Math.PI / 2; print.position.y = capH / 2 + .003; cap.add(print) }
-      // Canister lids telescope 65% over the body; tube caps cover their full height.
+      // Canister and hat-box lids telescope 65% over the body; tube caps cover their full height.
       const closedY = shape === 'tube' ? h - capH / 2 + capH * .02 : h - capH / 2 + capH * .35
       root.add(cap); capAt(cap, closedY, capH + h * .12)
     }
@@ -640,6 +650,141 @@ function buildRound(ctx: BuildContext, shape: 'canister' | 'tube' | 'bottle' | '
   if (design.hasHandles) addRopeHandles(ctx, root, R * 2, L.bodyTop * scale, R * 2)
   return { root, setOpen, opens, info: { bottom: { width: R * 1.3, depth: R * 1.3 }, ...(bandH > .02 ? { back: { kind: 'round' as const, radius: labelR + .005, height: bandH * .85, y: labelBand[0] + bandH / 2 } } : {}) } }
 }
+// ---------------------------------------------------------------------------------------------
+// Extended structures: telescope, book box, briefcase, triangular prism, tetrahedron
+// ---------------------------------------------------------------------------------------------
+
+/** Lid made of a top board plus four skirts, centred on its own height. */
+function boxLid(ctx: BuildContext, lw: number, ld: number, lidH: number) {
+  const { t, mats } = ctx, lid = new THREE.Group(); lid.name = 'lid'
+  const top = roundedBox(lw, t, ld, cornerRadius(ctx, .01), panelMats(mats, '+y'), 'lid top'); top.position.y = lidH / 2 - t / 2; lid.add(top)
+  for (const s of [1, -1]) {
+    const skirt = roundedBox(lw, lidH, t, .006, panelMats(mats, s > 0 ? '+z' : '-z'), 'lid skirt'); skirt.position.z = s * (ld / 2 - t / 2); lid.add(skirt)
+    const side = roundedBox(t, lidH, ld - 2 * t, .006, panelMats(mats, s > 0 ? '+x' : '-x'), 'lid skirt'); side.position.x = s * (lw / 2 - t / 2); lid.add(side)
+  }
+  return lid
+}
+
+function buildTelescope(ctx: BuildContext): BuiltModel {
+  const { w, h, d, t, design } = ctx, root = new THREE.Group()
+  hollowBox(ctx, root, w, h, d, t, { name: 'base' })
+  let setOpen: (t: number) => void = () => {}
+  if (design.openTop) {
+    const front = labelPlane(ctx, 'front', w * .85, h * .7); front.position.set(0, h / 2, d / 2 + .003); root.add(front)
+  } else {
+    // The deep lid covers ~85% of the base, so the front print lives on the lid skirt.
+    const c = t * 1.2, lw = w + 2 * c, ld = d + 2 * c, lidH = h * .85
+    const lid = boxLid(ctx, lw, ld, lidH)
+    const front = labelPlane(ctx, 'front', lw * .85, lidH * .7); front.position.set(0, 0, ld / 2 + .003); lid.add(front)
+    const print = labelPlane(ctx, 'lid', lw * .9, ld * .86); print.rotation.x = -Math.PI / 2; print.position.y = lidH / 2 + .002; lid.add(print)
+    const closedY = h + t - lidH / 2
+    root.add(lid)
+    setOpen = liftLid(lid, closedY, h, d)
+  }
+  if (design.hasHandles) addRopeHandles(ctx, root, w, h, d)
+  return { root, setOpen, opens: !design.openTop, info: { bottom: { width: w, depth: d }, back: { kind: 'flat', z: d / 2 + t * 2.5, width: w * .8, height: h * .6, y: h / 2 } } }
+}
+
+function buildBookBox(ctx: BuildContext): BuiltModel {
+  const { w, h, d, t, mats, design } = ctx, root = new THREE.Group()
+  const tw = w - t * 2, td = d - t * 2
+  // Case: bottom board, spine on the left, cover on top. Tray sits inside.
+  const bottom = roundedBox(w, t, d, .004, panelMats(mats, '-y'), 'case bottom'); bottom.position.y = t / 2; root.add(bottom)
+  const spine = roundedBox(t, h + t, d, .004, panelMats(mats, '-x'), 'spine'); spine.position.set(-w / 2 + t / 2, (h + t) / 2, 0); root.add(spine)
+  const trayMats = { ...mats, main: mats.inner } as PackagingMaterials
+  const tray = new THREE.Group(); tray.position.set(t / 2, t, 0)
+  hollowBox(ctx, tray, tw, h - t, td, t * .8, { name: 'tray', materials: trayMats })
+  root.add(tray)
+  const wrapFront = roundedBox(tw, h - t * 1.2, t * .5, .003, panelMats(mats, '+z'), 'front wrap'); wrapFront.position.set(t / 2, t + (h - t) / 2, td / 2 + t * .25); root.add(wrapFront)
+  const front = labelPlane(ctx, 'front', tw * .85, (h - t) * .66); front.position.set(t / 2, t + (h - t) / 2, td / 2 + t * .5 + .003); root.add(front)
+  let setOpen: (t: number) => void = () => {}
+  if (!design.openTop) {
+    const hinge = new THREE.Group(); hinge.name = 'cover'; hinge.position.set(-w / 2, h + t, 0)
+    const cover = roundedBox(w, t, d, cornerRadius(ctx, .006), panelMats(mats, '+y'), 'cover'); cover.position.set(w / 2, t / 2, 0); hinge.add(cover)
+    const print = labelPlane(ctx, 'lid', w * .86, d * .82); print.rotation.x = -Math.PI / 2; print.position.set(w / 2, t + .002, 0); hinge.add(print)
+    const magnet = mesh(new THREE.CylinderGeometry(Math.min(.03, d * .05), Math.min(.03, d * .05), t * .3, 24), mats.metal, 'magnet'); magnet.position.set(w - t * 2, -t * .1, 0); hinge.add(magnet)
+    root.add(hinge)
+    setOpen = v => { hinge.rotation.z = smooth(0, 1, v) * 1.95 }
+  }
+  return { root, setOpen, opens: !design.openTop, info: { bottom: { width: w, depth: d } } }
+}
+
+function buildBriefcase(ctx: BuildContext): BuiltModel {
+  const { w, h, d, mats, design } = ctx, t = Math.min(ctx.t, .03), root = new THREE.Group()
+  const body = h * .8, plateH = h - body
+  hollowBox(ctx, root, w, body, d, t, { name: 'briefcase body' })
+  const front = labelPlane(ctx, 'front', w * .88, body * .66); front.position.set(0, body * .5, d / 2 + .003); root.add(front)
+  const halves: THREE.Group[] = []
+  if (!design.openTop) {
+    for (const s of [1, -1]) {
+      const hinge = new THREE.Group(); hinge.position.set(0, body, s * d / 2); hinge.userData.s = s
+      const half = roundedBox(w, t, d / 2, .004, panelMats(mats, '+y'), 'top panel'); half.position.set(0, t / 2, -s * d / 4); hinge.add(half)
+      const plate = new THREE.Shape([new THREE.Vector2(-w / 2, 0), new THREE.Vector2(w / 2, 0), new THREE.Vector2(w / 2 - plateH * .3, plateH), new THREE.Vector2(-w / 2 + plateH * .3, plateH)])
+      const hw = Math.min(w * .3, 70 * ctx.scale), hh = plateH * .34, hy = plateH * .55
+      const hole = new THREE.Path(); hole.absarc(-hw / 2, hy, hh / 2, Math.PI / 2, Math.PI * 1.5, false); hole.absarc(hw / 2, hy, hh / 2, Math.PI * 1.5, Math.PI / 2, false)
+      plate.holes.push(hole)
+      const handle = mesh(new THREE.ExtrudeGeometry(plate, { depth: t * .8, bevelEnabled: false }), [mats.main, mats.edge], 'handle plate')
+      handle.position.set(0, t, s > 0 ? -d / 2 : d / 2 - t * .8)
+      hinge.add(handle)
+      if (s > 0) { const print = labelPlane(ctx, 'lid', w * .7, d * .36); print.rotation.x = -Math.PI / 2; print.position.set(0, t + .002, -d * .27); hinge.add(print) }
+      halves.push(hinge); root.add(hinge)
+    }
+  }
+  const setOpen = (v: number) => { const e = smooth(0, 1, v); for (const g of halves) g.rotation.x = (g.userData.s as number) * e * 1.9 }
+  if (design.hasHandles) addRopeHandles(ctx, root, w, body, d)
+  return { root, setOpen, opens: !design.openTop, info: { bottom: { width: w, depth: d }, back: { kind: 'flat', z: d / 2, width: w * .86, height: body * .7, y: body / 2 } } }
+}
+
+function buildTriangle(ctx: BuildContext): BuiltModel {
+  const { w, h, d, mats, design } = ctx, t = Math.min(ctx.t, .025), root = new THREE.Group()
+  // Triangle in the (z, y) plane, extruded along x. Shape x maps to -z after rotateY(90°).
+  const tri = (inset: number) => {
+    const k = 1 - inset * 2 / Math.max(.001, Math.min(d, h))
+    const cy = h / 3
+    return [new THREE.Vector2(-(d / 2) * k, cy + (0 - cy) * k), new THREE.Vector2((d / 2) * k, cy + (0 - cy) * k), new THREE.Vector2(0, cy + (h - cy) * k)]
+  }
+  const outer = new THREE.Shape(tri(0)); outer.holes.push(new THREE.Path(tri(t).reverse()))
+  const geo = new THREE.ExtrudeGeometry(outer, { depth: w, bevelEnabled: false })
+  geo.rotateY(Math.PI / 2); geo.translate(-w / 2, 0, 0)
+  root.add(mesh(geo, [mats.edge, mats.main], 'prism walls'))
+  const capGeo = () => new THREE.ShapeGeometry(new THREE.Shape(tri(0)))
+  const left = mesh(capGeo(), mats.main, 'end cap'); left.rotation.y = -Math.PI / 2; left.position.x = -w / 2 - .001; root.add(left)
+  const slant = Math.hypot(d / 2, h), tilt = Math.atan2(d / 2, h)
+  const print = labelPlane(ctx, 'front', w * .84, slant * .62)
+  print.rotation.x = -tilt
+  print.position.set(0, h / 2 + Math.sin(tilt) * .004, d / 4 + Math.cos(tilt) * .004)
+  root.add(print)
+  let setOpen: (t: number) => void = () => {}
+  if (!design.openTop) {
+    const hinge = new THREE.Group(); hinge.name = 'end flap'; hinge.position.set(w / 2 + .001, 0, 0)
+    const cap = mesh(capGeo(), mats.main, 'end flap'); cap.rotation.y = Math.PI / 2; hinge.add(cap)
+    root.add(hinge)
+    setOpen = v => { hinge.rotation.z = -smooth(0, 1, v) * 1.5 }
+  }
+  return { root, setOpen, opens: !design.openTop, info: { bottom: { width: w, depth: d } } }
+}
+
+function buildTetra(ctx: BuildContext): BuiltModel {
+  const { w, h, d, mats } = ctx, root = new THREE.Group()
+  const A = new THREE.Vector3(-w / 2, 0, 0), B = new THREE.Vector3(w / 2, 0, 0), C = new THREE.Vector3(0, h, -d / 2), D = new THREE.Vector3(0, h, d / 2)
+  const positions = [A, B, D, B, A, C, A, D, C, B, C, D].flatMap(v => v.toArray())
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)); geo.computeVertexNormals()
+  root.add(mesh(geo, mats.main, 'tetra body'))
+  const sealT = Math.max(.01, Math.min(w, d) * .03)
+  const top = mesh(new THREE.BoxGeometry(sealT * .5, sealT * 1.6, d * 1.04), mats.main, 'top seal'); top.position.set(0, h, 0); root.add(top)
+  const bottom = mesh(new THREE.BoxGeometry(w * 1.04, sealT * 1.6, sealT * .5), mats.main, 'bottom seal'); bottom.position.set(0, sealT * .8, 0); root.add(bottom)
+  // Front face ABD: orient a print plane with x along AB and z along the outward normal.
+  const n = new THREE.Vector3().subVectors(B, A).cross(new THREE.Vector3().subVectors(D, A)).normalize()
+  const xAxis = new THREE.Vector3(1, 0, 0), yAxis = new THREE.Vector3().crossVectors(n, xAxis)
+  const slant = Math.hypot(h, d / 2)
+  const print = labelPlane(ctx, 'front', w * .42, slant * .3)
+  print.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, n))
+  const base = new THREE.Vector3().addVectors(A, B).multiplyScalar(.5), centre = base.clone().lerp(D, .36)
+  print.position.copy(centre.addScaledVector(n, .005))
+  root.add(print)
+  return { root, setOpen: () => {}, opens: false, info: {} }
+}
+
 function physicalPaper(color: string) { return new THREE.MeshPhysicalMaterial({ color, roughness: .82, sheen: .3, sheenRoughness: .8 }) }
 
 // ---------------------------------------------------------------------------------------------
@@ -658,7 +803,15 @@ export function buildShapeModel(ctx: BuildContext): BuiltModel {
     case 'gable': return buildGable(ctx)
     case 'bag': return buildBag(ctx)
     case 'pouch': case 'sachet': case 'pillow': return buildSoft(ctx, shape)
-    case 'canister': case 'tube': case 'bottle': case 'jar': case 'lathe': return buildRound(ctx, shape)
+    case 'canister': case 'tube': case 'bottle': case 'jar': case 'lathe': case 'hat-box': case 'cone': return buildRound(ctx, shape)
+    case 'snap-lock': case 'crash-lock': case 'reverse-tuck': case 'wine-box': return buildCarton(ctx)
+    case 'telescope': return buildTelescope(ctx)
+    case 'book-box': return buildBookBox(ctx)
+    case 'cake-box': return buildRigidBox(ctx, 'window')
+    case 'briefcase': return buildBriefcase(ctx)
+    case 'heart': return buildPolygon(ctx, shape)
+    case 'triangle': return buildTriangle(ctx)
+    case 'tetra': return buildTetra(ctx)
   }
 }
 

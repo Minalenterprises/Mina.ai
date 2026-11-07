@@ -34,6 +34,7 @@ export type ProductCategory = 'Box' | 'Canister' | 'Carton' | 'Bag' | (string & 
 export type Structure = 'standard' | 'hexagon' | 'drawer' | 'window' | 'divider'
   | 'rigid-box' | 'carton' | 'bag' | 'canister' | 'octagon' | 'prism' | 'pillow' | 'pyramid' | 'gable' | 'mailer'
   | 'tube' | 'bottle' | 'jar' | 'pouch' | 'sachet' | 'tray' | 'sleeve' | 'display' | 'lathe' | 'extrude'
+  | 'snap-lock' | 'crash-lock' | 'reverse-tuck' | 'telescope' | 'book-box' | 'cake-box' | 'wine-box' | 'briefcase' | 'hat-box' | 'cone' | 'heart' | 'triangle' | 'tetra'
 /** Optional parameters for parametric shapes. All optional; sensible defaults per shape. */
 export type ShapeParams = {
   /** Prism sides, 3–12. */
