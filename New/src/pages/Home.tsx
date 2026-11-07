@@ -6,6 +6,7 @@ import { Header } from '../components/Header'
 import { Brand, MinalMark } from '../components/Brand'
 import { LoadingScreen } from '../components/LoadingScreen'
 import { PixelSky } from '../components/PixelSky'
+import { Composer } from '../components/Composer'
 import { examples, newDesign, type Example } from '../lib/types'
 import { useStore } from '../lib/store'
 const ProductScene = lazy(() => import('../components/ProductScene'))
@@ -43,7 +44,7 @@ export function Home() {
           <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .7, delay: .07, ease: [0.22, 1, 0.36, 1] }}>Your little idea,<br /><em>made real.</em></motion.h1>
           <motion.p className="hero-description" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65, delay: .14 }}>Describe it in a sentence. minal plans it, designs it and builds it in 3D, ready for the real world.</motion.p>
           <motion.div className="sky-hero-form" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65, delay: .21 }}>
-            <form className="idea-input" onSubmit={event => { event.preventDefault(); start() }}><Sparkles size={19} strokeWidth={1.6} /><input aria-label="Describe your product idea" placeholder="A box for a spoon…" value={idea} onChange={e => setIdea(e.target.value)} maxLength={600} /><button type="submit" aria-label="Start creating from your idea"><ArrowUpRight size={21} /></button></form>
+            <Composer value={idea} onChange={setIdea} onSubmit={start} />
             <div className="idea-suggestions"><button onClick={() => setIdea('A box for a spoon')}>A spoon box</button><button onClick={() => setIdea('A minimal skincare carton')}>Skincare carton</button><button onClick={() => setIdea('A matcha tea canister')}>Tea canister</button></div>
           </motion.div>
         </div>
