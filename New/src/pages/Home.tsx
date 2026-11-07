@@ -5,6 +5,7 @@ import { ArrowUpRight, ArrowRight, ArrowDown, Check, Box, Layers3, MoveUpRight, 
 import { Header } from '../components/Header'
 import { Brand, MinalMark } from '../components/Brand'
 import { LoadingScreen } from '../components/LoadingScreen'
+import { PixelSky } from '../components/PixelSky'
 import { examples, newDesign, type Example } from '../lib/types'
 import { useStore } from '../lib/store'
 const ProductScene = lazy(() => import('../components/ProductScene'))
@@ -35,18 +36,20 @@ export function Home() {
   return <div className="home-page">
     <Header />
     <main>
-      <section className="hero page-width">
-        <div className="hero-copy">
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .55 }} className="intro-pill"><span className="status-dot" /> BIG IDEAS START WITH A LITTLE CHAT <ArrowUpRight size={13} /></motion.div>
-          <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65, delay: .07 }}>Your idea.<br /><span className="hero-second-line">Made real.<span className="hero-asterisk"><MinalMark size={68} /></span></span></motion.h1>
-          <motion.p className="hero-description" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65, delay: .14 }}>Meet your new creative partner. Turn that little<br className="desktop-br" /> idea into a product you can actually hold.<br className="desktop-br" /> Just start a conversation.</motion.p>
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65, delay: .21 }}>
-            <form className="idea-input" onSubmit={event => { event.preventDefault(); start() }}><Sparkles size={19} strokeWidth={1.6} /><input aria-label="Describe your product idea" placeholder="I have an idea for…" value={idea} onChange={e => setIdea(e.target.value)} maxLength={600} /><button type="submit" aria-label="Start creating from your idea"><ArrowUpRight size={21} /></button></form>
-            <div className="idea-suggestions"><span>Try a little idea</span><button onClick={() => setIdea('A box for a spoon')}>A spoon box <ArrowUpRight size={11} /></button><button onClick={() => setIdea('A minimal skincare carton')}>Skincare packaging <ArrowUpRight size={11} /></button></div>
-            <div className="hero-actions"><button className="button button-lime" onClick={start}>Bring your idea to life <ArrowUpRight size={18} /></button><a href="#how-it-works" className="watch-link"><span className="play-icon"><Play size={10} fill="currentColor" /></span> See how it works</a></div>
-            <div className="hero-footnote"><span><Check size={12} /> No design skills needed</span><span className="tiny-divider" /><span><Check size={12} /> Free to explore</span></div>
+      <section className="sky-hero">
+        <PixelSky />
+        <div className="sky-hero-inner">
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .55 }} className="intro-pill"><span className="status-dot" /> AI packaging studio <ArrowUpRight size={13} /></motion.div>
+          <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .7, delay: .07, ease: [0.22, 1, 0.36, 1] }}>Your little idea,<br /><em>made real.</em></motion.h1>
+          <motion.p className="hero-description" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65, delay: .14 }}>Describe it in a sentence. minal plans it, designs it and builds it in 3D, ready for the real world.</motion.p>
+          <motion.div className="sky-hero-form" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65, delay: .21 }}>
+            <form className="idea-input" onSubmit={event => { event.preventDefault(); start() }}><Sparkles size={19} strokeWidth={1.6} /><input aria-label="Describe your product idea" placeholder="A box for a spoon…" value={idea} onChange={e => setIdea(e.target.value)} maxLength={600} /><button type="submit" aria-label="Start creating from your idea"><ArrowUpRight size={21} /></button></form>
+            <div className="idea-suggestions"><button onClick={() => setIdea('A box for a spoon')}>A spoon box</button><button onClick={() => setIdea('A minimal skincare carton')}>Skincare carton</button><button onClick={() => setIdea('A matcha tea canister')}>Tea canister</button></div>
           </motion.div>
         </div>
+      </section>
+      <section className="showcase page-width">
+        <div className="showcase-copy"><span className="eyebrow">SEE IT BEFORE IT EXISTS</span><h2>Render, spin, unfold.</h2><p>Every design comes with a photo-real render, a live 3D model and a print-ready dieline.</p><div className="hero-actions"><button className="button button-lime" onClick={start}>Start designing <ArrowUpRight size={18} /></button><a href="#how-it-works" className="watch-link"><span className="play-icon"><Play size={10} fill="currentColor" /></span> How it works</a></div></div>
         <motion.div className="hero-visual-wrap" initial={{ opacity: 0, scale: .97 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: .8, delay: .1 }}>
           <div className={`hero-visual ${view !== 'render' ? 'live-preview' : ''}`}>
             <div className="preview-topline"><span><span className="status-dot" /> A LITTLE IDEA, BROUGHT TO LIFE</span><span className="made-badge"><MinalMark size={12} /> Made with minal</span></div>
