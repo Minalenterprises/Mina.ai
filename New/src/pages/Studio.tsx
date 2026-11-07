@@ -32,6 +32,7 @@ import {
 import { Header } from '../components/Header'
 import { MinalMark } from '../components/Brand'
 import { BlankProject } from '../components/BlankProject'
+import { BuildView, type BuildPhase, type Shot } from '../components/BuildView'
 import { RouteLoader } from '../components/LoadingScreen'
 import { SiriOrb } from '../components/SiriGlow'
 import { SceneStage } from '../components/SceneStage'
@@ -260,6 +261,11 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
   const [input, setInput] = useState(initialDesign.chatStep === 0 ? initialDesign.brief : '')
   const [thinking, setThinking] = useState(false)
   const [started, setStarted] = useState(false)
+  const [build, setBuild] = useState<'off' | BuildPhase>('off')
+  const [shots, setShots] = useState<Shot[]>([])
+  const [buildPrompt, setBuildPrompt] = useState('')
+  const [buildDirective, setBuildDirective] = useState<string | undefined>()
+  const sawThinking = useRef(false)
   const [uploading, setUploading] = useState(false)
   const [view, setView] = useState<'3d' | '2d'>('3d')
   const [openBox, setOpenBox] = useState(true)
@@ -548,6 +554,59 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
       ? templates
       : templates.filter(t => (t.tag || 'Boxes').toLowerCase().includes(templateFilter.toLowerCase()))
 
+  const startBuild = (text: string, directive?: string) => {
+    setBuildPrompt(text); setBuildDirective(directive); setShots([]); setView('3d'); setBuild('building'); sawThinking.current = false
+    void send(text, directive)
+  }
+  const captureShots = async (): Promise<Shot[]> => {
+    const views: [PreviewSettings['camera'], string][] = [['perspective', 'Hero'], ['front', 'Front'], ['top', 'Top'], ['back', 'Back']]
+    const out: Shot[] = []
+    for (const [v, label] of views) {
+      setCameraView(v)
+      const t0 = performance.now()
+      while (performance.now() - t0 < 5000) {
+        const c = sceneRef.current?.querySelector('canvas')
+        if (c?.dataset.cameraView === v && c.dataset.designKey) break
+        await new Promise(r => setTimeout(r, 80))
+      }
+      await new Promise(r => setTimeout(r, 700))
+      const c = sceneRef.current?.querySelector('canvas')
+      if (!c || !c.width) continue
+      const cap = document.createElement('canvas'); const k = Math.min(1, 1600 / c.width)
+      cap.width = c.width * k; cap.height = c.height * k
+      const cx = cap.getContext('2d')!
+      cx.drawImage(c, 0, 0, cap.width, cap.height)
+      // crop to the product (canvas is transparent around it), with breathing room
+      const { data, width: W, height: H } = cx.getImageData(0, 0, cap.width, cap.height)
+      let x0 = W, y0 = H, x1 = 0, y1 = 0
+      const bg = [data[0], data[1], data[2]], bgA = data[3]
+      for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) { const i = (y * W + x) * 4; const d = Math.abs(data[i] - bg[0]) + Math.abs(data[i + 1] - bg[1]) + Math.abs(data[i + 2] - bg[2]); if (data[i + 3] < 160 || (bgA > 200 && d < 30)) continue; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y }
+      let src = cap.toDataURL('image/png')
+      if (x1 > x0 && y1 > y0) {
+        const pad = Math.round(Math.max(x1 - x0, y1 - y0) * .16)
+        x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W, x1 + pad); y1 = Math.min(H, y1 + pad)
+        const crop = document.createElement('canvas'); crop.width = x1 - x0; crop.height = y1 - y0
+        crop.getContext('2d')!.drawImage(cap, x0, y0, crop.width, crop.height, 0, 0, crop.width, crop.height)
+        src = crop.toDataURL('image/png')
+      }
+      out.push({ view: v, label, src })
+    }
+    setCameraView('perspective')
+    return out
+  }
+  useEffect(() => {
+    if (build !== 'building') return
+    if (thinking) { sawThinking.current = true; return }
+    if (!sawThinking.current) return
+    sawThinking.current = false
+    const last = design.messages[design.messages.length - 1]
+    if (last?.error) { setBuild('error'); return }
+    setBuild('shooting')
+    void captureShots().then(list => { setShots(list); setBuild(list.length ? 'gallery' : 'off') })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thinking, build])
+  const lastError = [...design.messages].reverse().find(m => m.role === 'assistant')?.text
+
   const isBlank = !started && !thinking && !design.messages.some(m => m.role === 'user')
   if (isBlank) return (
     <BlankProject
@@ -556,12 +615,17 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
       value={input}
       onChange={setInput}
       onSkip={() => setStarted(true)}
-      onSubmit={(text, agent) => { setStarted(true); void send(text, agent ? '[Agent mode: plan and complete the whole design end to end. Choose structure, material, finish and typography yourself, apply every change with your tools, and do not stop to ask questions.]' : undefined) }}
+      onSubmit={(text, agent) => { setStarted(true); if (!aiActive) { void send(text); return } startBuild(text, agent ? '[Agent mode: plan and complete the whole design end to end. Choose structure, material, finish and typography yourself, apply every change with your tools, and do not stop to ask questions.]' : undefined) }}
     />
   )
 
   return (
-    <div className={`workspace-page realtime-studio sx ${thinking ? 'sx-thinking' : ''}`}>
+    <div className={`workspace-page realtime-studio sx ${thinking ? 'sx-thinking' : ''} ${build !== 'off' ? 'sx-under' : 'sx-enter'}`}>
+      <AnimatePresence>{build !== 'off' && (
+        <BuildView key="bv" phase={build} name={design.name === 'Untitled idea' ? 'Untitled project' : design.name} prompt={buildPrompt} progress={progress} tools={activeTools} shots={shots}
+          error={lastError} sceneRef={sceneRef} value={input} onChange={setInput}
+          onSend={text => startBuild(text)} onStop={() => requestRef.current?.abort()} onPreview={() => setBuild('off')} onRetry={() => startBuild(buildPrompt, buildDirective)} />
+      )}</AnimatePresence>
       <Header workspace />
 
       {/* Slim top bar */}
