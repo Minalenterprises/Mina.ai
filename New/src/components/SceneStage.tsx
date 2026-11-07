@@ -1,8 +1,7 @@
 import { memo, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { LoadingScreen } from './LoadingScreen'
-import { SiriGlow } from './SiriGlow'
-import { AnimatedCursor } from './AnimatedCursor'
+import { GenerateOverlay } from './GenerateOverlay'
 
 /**
  * Wraps the (engine-owned) ProductScene with UI-only layers:
@@ -14,7 +13,7 @@ import { AnimatedCursor } from './AnimatedCursor'
  */
 type Props = { children: ReactNode; thinking: boolean; interactive3d: boolean; pulse: number; label?: string }
 
-export const SceneStage = memo(function SceneStage({ children, thinking, interactive3d, pulse, label }: Props) {
+export const SceneStage = memo(function SceneStage({ children, thinking, label }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
 
@@ -36,8 +35,7 @@ export const SceneStage = memo(function SceneStage({ children, thinking, interac
     <div className={`scene-stage ${thinking ? 'is-thinking' : ''}`} ref={host}>
       <Suspense fallback={<LoadingScreen variant="inline" label="Loading the 3D engine" />}>{children}</Suspense>
       <AnimatePresence>{!ready && <LoadingScreen key="scene-loader" variant="inline" label="Rendering your 3D model" />}</AnimatePresence>
-      <SiriGlow active={thinking} variant="edge" />
-      <AnimatedCursor active={thinking && interactive3d && ready} pulse={pulse} label={label} />
+      <GenerateOverlay active={thinking && ready} label={label} />
     </div>
   )
 })
