@@ -25,12 +25,24 @@ export const FoldingBox = memo(function FoldingBox({ size = 64, loop = true }: {
   )
 })
 
-const PARTICLES = Array.from({ length: 18 }, (_, i) => ({
-  angle: (i / 18) * 360,
-  radius: 92 + ((i * 37) % 60),
-  delay: -((i * 0.29) % 3.2),
-  size: 2 + (i % 3),
-}))
+/** 7×7 pixel asterisk that assembles block by block, then rebuilds. */
+const MARK = [
+  '...#...',
+  '#..#..#',
+  '.#.#.#.',
+  '..###..',
+  '.#.#.#.',
+  '#..#..#',
+  '...#...',
+]
+const PIXELS = MARK.flatMap((row, y) => [...row].map((c, x) => ({ x, y, on: c === '#' }))).filter(p => p.on)
+  .map(p => ({ ...p, delay: (Math.hypot(p.x - 3, p.y - 3) * 0.11).toFixed(2) }))
+
+export const PixelMark = memo(function PixelMark({ size = 84 }: { size?: number }) {
+  return <div className="pixel-mark" style={{ '--pm-size': `${size}px` } as React.CSSProperties} aria-hidden="true">
+    {PIXELS.map(p => <i key={`${p.x}-${p.y}`} style={{ gridColumn: p.x + 1, gridRow: p.y + 1, animationDelay: `${p.delay}s` } as React.CSSProperties} />)}
+  </div>
+})
 
 /** Asymptotic fake progress so the bar always moves but never lies about finishing. */
 function useCreepingProgress(done: boolean) {
@@ -67,15 +79,7 @@ export function LoadingScreen({ variant = 'fullscreen', label = 'Preparing your 
       exit={{ opacity: 0, scale: inline ? 1 : 1.03, filter: 'blur(6px)' }}
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="loading-aurora" aria-hidden="true" />
-      <div className="loading-core">
-        <div className="loading-particles" aria-hidden="true">
-          {PARTICLES.map((p, i) => (
-            <span key={i} style={{ '--p-angle': `${p.angle}deg`, '--p-radius': `${inline ? p.radius * 0.7 : p.radius}px`, '--p-delay': `${p.delay}s`, '--p-size': `${p.size}px` } as React.CSSProperties} />
-          ))}
-        </div>
-        <FoldingBox size={inline ? 52 : 70} />
-      </div>
+      <div className="loading-core"><PixelMark size={inline ? 60 : 96} /></div>
       {!inline && <div className="loading-wordmark">minal<span>.</span>ai</div>}
       <div className="loading-meta">
         <span className="loading-label">{label}<i className="loading-ellipsis"><b>.</b><b>.</b><b>.</b></i></span>
