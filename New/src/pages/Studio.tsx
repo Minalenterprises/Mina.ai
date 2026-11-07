@@ -31,6 +31,8 @@ import {
 } from 'lucide-react'
 import { Header } from '../components/Header'
 import { MinalMark } from '../components/Brand'
+import { PixelSky } from '../components/PixelSky'
+import { Composer } from '../components/Composer'
 import { RouteLoader } from '../components/LoadingScreen'
 import { SiriOrb } from '../components/SiriGlow'
 import { SceneStage } from '../components/SceneStage'
@@ -254,10 +256,11 @@ export function Studio() {
 }
 
 function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
-  const { saveDesign, notify, storageAvailable } = useStore()
+  const { saveDesign, notify, storageAvailable, designs } = useStore()
   const [design, setDesign] = useState<Design>(initialDesign)
   const [input, setInput] = useState(initialDesign.chatStep === 0 ? initialDesign.brief : '')
   const [thinking, setThinking] = useState(false)
+  const [started, setStarted] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [view, setView] = useState<'3d' | '2d'>('3d')
   const [openBox, setOpenBox] = useState(true)
@@ -544,6 +547,42 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
     templateFilter === 'All'
       ? templates
       : templates.filter(t => (t.tag || 'Boxes').toLowerCase().includes(templateFilter.toLowerCase()))
+
+  const isBlank = !started && !thinking && !design.messages.some(m => m.role === 'user')
+  const recent = designs.filter(d => d.id !== design.id && d.messages.some(m => m.role === 'user')).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 4)
+  if (isBlank) return (
+    <div className="workspace-page sx sx-blank">
+      <Header workspace />
+      <PixelSky cell={22} skyline={false} />
+      <main className="sx-blank-main">
+        <h1 className="sx-blank-title"><span>What are we</span> <em>making?</em></h1>
+        <p className="sx-blank-sub">Describe it in a sentence. minal plans it, folds it and builds it in 3D.</p>
+        <div className="sx-blank-composer">
+          <Composer value={input} onChange={setInput} onSubmit={() => { const text = input.trim(); if (!text) return; setStarted(true); void send(text) }} />
+        </div>
+        <div className="sx-blank-chips">
+          {['Rigid gift box for a silver spoon', 'Kraft mailer for scented candles', 'Tall tea canister, matte navy', 'Paper shopping bag with rope handles'].map((idea, i) => (
+            <button key={idea} style={{ animationDelay: `${.45 + i * .07}s` }} onClick={() => setInput(idea)}>{idea}</button>
+          ))}
+        </div>
+        <button className="sx-blank-skip" onClick={() => setStarted(true)}>or start from a blank box →</button>
+        {recent.length > 0 && (
+          <section className="sx-recent">
+            <div className="sx-recent-head"><span>Recent</span><Link to="/projects">All projects →</Link></div>
+            <div className="sx-recent-row">
+              {recent.map((d, i) => (
+                <Link key={d.id} to={`/studio/${d.id}`} className="sx-recent-card" style={{ animationDelay: `${.6 + i * .08}s` }}>
+                  <span className="sx-recent-swatch" style={{ background: d.color }}><Box size={18} /></span>
+                  <strong>{d.name}</strong>
+                  <small>{d.category} · {new Date(d.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</small>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+      </main>
+    </div>
+  )
 
   return (
     <div className={`workspace-page realtime-studio sx ${thinking ? 'sx-thinking' : ''}`}>
