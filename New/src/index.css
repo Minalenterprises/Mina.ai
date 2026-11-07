@@ -2005,3 +2005,108 @@ select option { background: #fff; color: var(--ink) }
 .hero-asterisk svg { width: .42em; height: .42em }
 .why-art { width: 100% }
 .manifesto-section > div { display: grid; justify-items: center }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MINA — PIXEL SKY LAYER  (light + dark)
+   Palette: electric sky blue, white, near-black ink. Loaded last.
+   ═══════════════════════════════════════════════════════════════════════ */
+:root, html[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f5f8fc; --bg-2: #eaf1fa; --surface: #ffffff; --surface-2: #eef3fa; --surface-3: #e0e9f5;
+  --ink: #0a0d14; --ink-soft: #3a4352; --ink-mute: #7c8698; --line: rgba(10,13,20,.10); --line-soft: rgba(10,13,20,.06);
+  --accent: #dcebff; --primary: #0a0d14; --on-primary: #ffffff; --blue: #1463ff; --blue-soft: #dcebff;
+  --header-bg: rgba(255,255,255,.82); --scrim: rgba(245,248,252,.94);
+  --sky-0: #0b5cf0; --sky-1: #2a7dff; --sky-2: #5aa0ff; --sky-3: #9cc8ff; --sky-4: #d6e8ff; --sky-city: #0a0d14; --sky-window: #5aa0ff;
+  --cur-top: #ffffff; --cur-side-a: #dcebff; --cur-side-b: #b4d3ff; --cur-ink: #0a0d14; --cur-blue: #1463ff; --cur-surface: #ffffff; --cur-dot: rgba(10,13,20,.12);
+  --soft-shadow: 0 1px 2px rgba(10,13,20,.04), 0 12px 32px -16px rgba(10,13,20,.12);
+}
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #05070d; --bg-2: #0a0e18; --surface: #0e1320; --surface-2: #151b2b; --surface-3: #1d2538;
+  --ink: #eef3fb; --ink-soft: #b4bfd1; --ink-mute: #76829a; --line: rgba(238,243,251,.10); --line-soft: rgba(238,243,251,.06);
+  --accent: #142a52; --primary: #eef3fb; --on-primary: #05070d; --blue: #4c8dff; --blue-soft: #142a52;
+  --header-bg: rgba(14,19,32,.78); --scrim: rgba(5,7,13,.94);
+  --sky-0: #030916; --sky-1: #071a3d; --sky-2: #0c2d68; --sky-3: #1446a3; --sky-4: #2f6be0; --sky-city: #000000; --sky-window: #ffd76a;
+  --cur-top: #1d2538; --cur-side-a: #142a52; --cur-side-b: #0c2d68; --cur-ink: #eef3fb; --cur-blue: #4c8dff; --cur-surface: #0e1320; --cur-dot: rgba(238,243,251,.10);
+  --soft-shadow: 0 1px 2px rgba(0,0,0,.4), 0 16px 40px -18px rgba(0,0,0,.7);
+}
+html, body { transition: background-color .35s ease, color .35s ease }
+::selection { background: var(--blue-soft); color: var(--ink) }
+select option { background: var(--surface) }
+.button-lime:hover, .button-lime:focus-visible, .button-dark:hover, .button-dark:focus-visible, .idea-input button[type='submit']:hover { background: var(--blue) !important; color: #fff !important }
+.status-dot, .intro-pill .status-dot, .ready-pill span, .launcher-dot { background: var(--blue) !important }
+.site-header, .site-header.is-scrolled, .workspace-header { background: transparent !important; backdrop-filter: none; -webkit-backdrop-filter: none; border-bottom: 0 !important; padding-top: 14px }
+.site-header .header-inner { background: var(--header-bg); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: 999px; padding: 8px 8px 8px 22px; max-width: 1120px; margin: 0 auto; box-shadow: var(--soft-shadow) }
+.workspace-header .header-inner { max-width: none; margin: 0 clamp(12px, 2vw, 24px) }
+.site-header .main-nav a { color: var(--ink-soft) } .site-header .main-nav a:hover { color: var(--ink) }
+.theme-toggle { width: 38px; height: 38px; border-radius: 999px; display: grid; place-items: center; color: var(--ink); border: 1px solid var(--line); background: transparent }
+.theme-toggle:hover { background: var(--surface-2) }
+.toast button, .studio-message.message-user .message-tick, .support-bubble.outgoing span, .inbox-message small { color: color-mix(in srgb, var(--on-primary) 65%, transparent) !important }
+.loading-inline { background: var(--scrim) !important }
+.example-category, .example-open { background: var(--surface) !important }
+.new-project-card { border-color: var(--line) !important }
+.idea-input:focus-within, .search-input:focus-within, .studio-compose:focus-within { border-color: var(--blue) !important }
+.view-toggle button.selected { background: var(--surface) !important }
+
+/* Hero: pixel sky frame */
+.home-page .site-header { position: fixed; left: 0; right: 0; top: 0; z-index: 50 }
+.sky-hero { position: relative; min-height: max(720px, 100svh); display: grid; place-items: center; overflow: hidden; background: var(--bg); padding: 120px 20px 150px; isolation: isolate }
+.pixel-sky { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; display: block; image-rendering: pixelated }
+.sky-hero-inner { max-width: 760px; text-align: center; display: flex; flex-direction: column; align-items: center }
+.sky-hero .intro-pill { background: var(--surface); border: 1px solid var(--line); color: var(--ink-soft); text-transform: uppercase; letter-spacing: 1.6px; font-size: 11px; font-weight: 600; margin-bottom: 26px }
+.sky-hero h1 { font-family: 'Instrument Serif', 'Times New Roman', serif; font-weight: 400; font-size: clamp(54px, 8.4vw, 118px); line-height: .94; letter-spacing: -.025em; color: var(--ink); margin: 0; text-wrap: balance }
+.sky-hero h1 em { font-style: italic; color: var(--blue) }
+.sky-hero .hero-description { max-width: 480px; margin: 24px auto 0; font-size: clamp(15px, 1.25vw, 17px); line-height: 1.6; color: var(--ink-soft) }
+.sky-hero-form { width: min(560px, 100%); margin-top: 34px }
+.sky-hero .idea-input { background: var(--surface) !important; border: 1px solid var(--line) !important; box-shadow: var(--soft-shadow) !important; border-radius: 999px; padding: 7px 7px 7px 22px }
+.sky-hero .idea-input input { color: var(--ink); font-size: 16px }
+.sky-hero .idea-input button[type='submit'] { background: var(--primary) !important; color: var(--on-primary) !important }
+.sky-hero .idea-suggestions { justify-content: center; margin-top: 14px; gap: 8px; display: flex; flex-wrap: wrap }
+.sky-hero .idea-suggestions button { background: var(--surface); border: 1px solid var(--line); color: var(--ink-soft); border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 500 }
+.sky-hero .idea-suggestions button:hover { color: var(--ink); border-color: var(--ink) }
+
+/* Showcase (old hero visual, now its own section) */
+.showcase { display: grid; grid-template-columns: .8fr 1.2fr; gap: clamp(32px, 6vw, 88px); align-items: center; padding: clamp(80px, 10vw, 140px) 0 clamp(40px, 6vw, 80px) }
+.showcase-copy h2 { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: clamp(44px, 5.4vw, 76px); line-height: .95; letter-spacing: -.02em; margin: 14px 0 18px }
+.showcase-copy p { color: var(--ink-soft); max-width: 380px; line-height: 1.6; margin-bottom: 28px }
+.showcase .hero-visual { background: var(--surface) !important; border: 1px solid var(--line) !important }
+@media (max-width: 880px) { .showcase { grid-template-columns: 1fr } .site-header .header-inner { border-radius: 22px } }
+
+/* Headline type across sections */
+.section-heading h2, .why-copy h2, .faq-section h2, .final-cta h2 { font-family: 'Instrument Serif', serif !important; font-weight: 400 !important; letter-spacing: -.02em !important; line-height: .95 !important }
+.manifesto-section { background: var(--bg) }
+.manifesto-section > div { background: var(--surface); border: 1px solid var(--line) }
+.cta-star { color: var(--blue) }
+.why-center { background: var(--blue) !important; color: #fff !important }
+.step-card, .example-card { background: var(--surface) !important; border: 1px solid var(--line) !important }
+.step-illustration { background: var(--surface-2) !important }
+
+/* Loading: pixel asterisk */
+.loading-screen { background: var(--bg) !important }
+.pixel-mark { width: var(--pm-size); height: var(--pm-size); display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(7, 1fr); gap: 2px }
+.pixel-mark i { background: var(--blue); animation: pm-build 2.4s cubic-bezier(.22,1,.36,1) infinite both }
+.pixel-mark i:nth-child(3n) { background: var(--sky-2) } .pixel-mark i:nth-child(4n) { background: var(--ink) }
+@keyframes pm-build { 0% { transform: scale(0); opacity: 0 } 22%, 72% { transform: scale(1); opacity: 1 } 92%, 100% { transform: scale(0); opacity: 0 } }
+.loading-bar { background: var(--line) !important } .loading-bar span { background: var(--blue) !important }
+.loading-wordmark { color: var(--ink) !important }
+
+/* AI build cursor */
+.ai-cursor-scrim { display: none }
+.ai-cursor-grid { position: absolute; inset: 0; opacity: .9 }
+.ai-cursor-stage { background: color-mix(in srgb, var(--bg) 55%, transparent) }
+.ai-ghost-box { position: absolute; overflow: visible; filter: drop-shadow(0 18px 24px rgba(10,13,20,.14)) !important }
+.ai-cursor-arrow { filter: drop-shadow(0 3px 6px rgba(10,13,20,.28)) !important }
+.ai-cursor-ripple { border: 2px solid var(--cur-blue) !important; box-shadow: none !important }
+.ai-cursor-chip { left: 18px !important; top: 20px !important; gap: 8px !important; padding: 6px 12px 6px 6px !important; border-radius: 4px 999px 999px 999px !important; background: var(--cur-blue) !important; color: #fff !important; border: 0 !important; font-weight: 600 !important; box-shadow: 0 8px 20px -8px rgba(20,99,255,.55) !important; backdrop-filter: none !important }
+.ai-cursor-chip b { background: #fff; color: var(--cur-blue); border-radius: 999px; padding: 2px 8px; font-size: 10.5px; letter-spacing: .3px }
+.ai-cursor-chip-static { left: 50% !important; top: auto !important; bottom: 56px; transform: translateX(-50%) }
+.ai-cursor-progress { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 7px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--soft-shadow) }
+.ai-cursor-progress i { width: 16px; height: 4px; border-radius: 2px; background: var(--line); transition: background .3s }
+.ai-cursor-progress i.on { background: var(--cur-blue) }
+.ai-cursor-progress span { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--ink-soft); font-variant-numeric: tabular-nums }
+.sky-hero-inner { max-width: 1040px }
+.sky-hero h1 { font-size: clamp(52px, 7.4vw, 112px) }
+.ai-cursor-arrow { width: 26px; height: 26px }
+.manifesto-section > div { border: 0 !important; background: transparent !important }
+.pixel-mark { gap: 3px }
+.pixel-mark i { border-radius: 1px }
