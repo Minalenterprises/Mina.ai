@@ -8,7 +8,7 @@ import type { ChatMessage, HarnessOptions } from './ai/core'
 import type { Design } from './types'
 
 export type { AgentResult, ChatMessage, HarnessOptions } from './ai/core'
-export { listProviderModels, testProviderKey } from './ai/agent'
+export { listCustomProviderModels, listProviderModels, testCustomProvider, testProviderKey } from './ai/agent'
 
 /** Runs the design assistant on the provider selected in AI Settings. */
 export function chatWithAI(messages: ChatMessage[], initial: Design, options: HarnessOptions = {}) {

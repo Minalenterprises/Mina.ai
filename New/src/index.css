@@ -1820,3 +1820,17 @@ select option { background: #141418; color: var(--ink) }
 .shot-lightbox figcaption > span:last-child { display: inline-flex; align-items: center; gap: 8px }
 .home-magic-button { display: inline-flex; align-items: center; gap: 7px }
 @media (prefers-reduced-motion: reduce) { .magic-build-card, .design-shots button { transition: none } }
+
+/* Custom AI providers (Admin → AI Settings) */
+.add-provider-card { border-style: dashed }
+.add-provider-card strong, .provider-grid .model-card strong { display: inline-flex; align-items: center; gap: 6px }
+.custom-provider-row { margin-top: 14px }
+.ai-settings-panel .settings-section > .field + .field, .ai-settings-panel .settings-section > .field + .api-key-input, .ai-settings-panel .settings-section > .field-row + .field, .ai-settings-panel .settings-section > .field-row + .api-key-input { margin-top: 14px }
+.custom-provider-note { display: block; margin-top: 8px; color: var(--ink-mute); font-size: 12.5px; line-height: 1.5; overflow-wrap: anywhere }
+.custom-provider-note code { font-size: 12px }
+.custom-headers { display: grid; gap: 8px; margin-top: 16px; justify-items: start }
+.custom-header-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: 8px; width: 100% }
+.custom-header-row input { background: var(--surface-2); padding: 10px 12px; border-radius: 10px; font-size: 13.5px; border: 1px solid transparent; min-width: 0 }
+.custom-header-row input[aria-invalid="true"], .field input[aria-invalid="true"] { border-color: var(--danger) }
+.custom-provider-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; font-size: 13px }
+@media (max-width: 640px) { .custom-header-row { grid-template-columns: 1fr 1fr auto } .custom-provider-row { grid-template-columns: 1fr } }

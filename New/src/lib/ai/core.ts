@@ -44,6 +44,19 @@ export type SessionInit = {
   apiKey: string
   model: string
   stream: boolean
+  /** Set for custom providers: where to send requests and how to authenticate. Built-ins use their own endpoints. */
+  endpoint?: Endpoint
+}
+
+/**
+ * A resolved custom endpoint. `base` is the API root the adapter appends its paths to
+ * (`…/v1` for OpenAI-compatible and Anthropic, `…/v1beta` for Gemini), already validated and without a trailing slash.
+ */
+export type Endpoint = {
+  base: string
+  label: string
+  /** Auth plus extra headers, without Content-Type. */
+  headers: () => Record<string, string>
 }
 export type TurnHooks = { signal: AbortSignal; onText?: (text: string) => void; onProgress?: (status: string) => void }
 
@@ -58,15 +71,18 @@ export interface ProviderSession {
 }
 export type ProviderModule = {
   createSession(init: SessionInit): ProviderSession
-  testKey(apiKey: string, model: string): Promise<{ success: boolean; error?: string }>
-  listModels?(apiKey: string, signal?: AbortSignal): Promise<{ id: string; name: string }[]>
+  testKey(apiKey: string, model: string, endpoint?: Endpoint): Promise<{ success: boolean; error?: string }>
+  listModels?(apiKey: string, signal?: AbortSignal, endpoint?: Endpoint): Promise<{ id: string; name: string }[]>
 }
 
 /** Error with routing hints for the agent loop. */
+/** What a custom server could not do, so the adapter can adapt and retry (non-streaming, no images, no reasoning replay). */
+export type Unsupported = 'stream' | 'images' | 'reasoning'
 export class AIError extends Error {
   modelMissing?: boolean
   status?: number
-  constructor(message: string, extra: { modelMissing?: boolean; status?: number } = {}) {
+  unsupported?: Unsupported
+  constructor(message: string, extra: { modelMissing?: boolean; status?: number; unsupported?: Unsupported } = {}) {
     super(message)
     this.name = 'AIError'
     Object.assign(this, extra)
@@ -124,6 +140,8 @@ export type RequestOptions = {
   /** Per-attempt time limit until response headers arrive. */
   timeoutMs?: number
   onProgress?: (status: string) => void
+  /** Extra advice appended when the server cannot be reached at all (e.g. a CORS hint for custom endpoints). */
+  networkHint?: string
   /** Maps a failed response to a clear, actionable error and whether it is worth retrying. */
   classify: (status: number, data: unknown, headers: Headers | undefined) => Classified
 }
@@ -139,7 +157,7 @@ export function retryAfterMs(headers: Headers | undefined): number | undefined {
 }
 
 /** fetch with bounded retries (exponential backoff with jitter) for rate limits, overload and network failures. */
-export async function requestWithRetry({ url, init, signal, label, attempts = 3, timeoutMs = 90000, onProgress, classify }: RequestOptions): Promise<Response> {
+export async function requestWithRetry({ url, init, signal, label, attempts = 3, timeoutMs = 90000, onProgress, networkHint, classify }: RequestOptions): Promise<Response> {
   let lastError: Error | undefined
   for (let attempt = 0; attempt < attempts; attempt++) {
     signal.throwIfAborted()
@@ -155,7 +173,7 @@ export async function requestWithRetry({ url, init, signal, label, attempts = 3,
     } catch (error) {
       signal.throwIfAborted()
       timedOut ||= error instanceof DOMException && error.name === 'TimeoutError'
-      lastError = new AIError(timedOut ? `${label} took too long to respond. Please retry.` : `Couldn’t reach ${label} (${error instanceof Error ? error.message : 'network error'}). Check your connection.`)
+      lastError = new AIError(timedOut ? `${label} took too long to respond. Please retry.` : `Couldn’t reach ${label} (${error instanceof Error ? error.message : 'network error'}). ${networkHint || 'Check your connection.'}`)
       if (attempt === attempts - 1) break
       onProgress?.('Reconnecting…')
       await sleep(600 * 2 ** attempt + Math.random() * 250, signal)
@@ -239,3 +257,49 @@ export function errorMessage(data: unknown): string | undefined {
 
 /** OpenAI reasoning models reject sampling parameters and accept a reasoning effort. */
 export const isReasoningModel = (model: string) => /^(o\d|gpt-5|gpt-6|gpt-oss)/.test(model)
+
+/** True when a server answered a streaming request with a plain JSON body (servers without streaming support). */
+export const isJsonResponse = (response: Response) => /application\/json/i.test(response.headers?.get?.('content-type') || '')
+
+/** Error wording some servers use when they cannot do tool/function calling. */
+export const TOOLS_UNSUPPORTED = /(tool|function)[\s_-]*(call(ing|s)?|use|choice)?[^.]{0,60}(not|un)[\s-]*(supported|support|available|allowed|implemented)|does not support (tools|function)|(unknown|unrecognized|unexpected|extra|invalid)[^.]{0,30}\b(tools|tool_choice|functions)\b|\btools\b[^.]{0,30}(not permitted|is not allowed)/i
+/** Error wording servers use when they cannot stream. */
+export const STREAM_UNSUPPORTED = /stream(ing)?[^.]{0,40}(not|un)[\s-]*(supported|support|available|allowed|implemented)|(unknown|unrecognized|unexpected|extra|invalid)[^.]{0,30}\bstream\b/i
+/** Error wording servers use when the model cannot take images. */
+export const IMAGES_UNSUPPORTED = /(image|vision|multimodal|image_url)[^.]{0,60}(not|un)[\s-]*(supported|support|available|allowed)|does not support (image|vision)|(unknown|invalid)[^.]{0,30}(image_url|image)/i
+
+export function toolsUnsupportedError(label: string, model: string, status?: number) {
+  return new AIError(`“${model || 'This model'}” on ${label} doesn’t support tool calling, which the design tools need. Choose a tool-capable model in AI Settings (one listed with tools / function calling support).`, { status })
+}
+
+/** Plain-words advice for a fetch that never reached a custom server: usually CORS, a stopped local server or mixed content. */
+export function corsHint(base: string): string {
+  let url: URL | undefined
+  try { url = new URL(base) } catch { /* invalid URLs are rejected before this point */ }
+  const local = !!url && /^(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)$/.test(url.hostname)
+  const pageHttps = typeof location !== 'undefined' && location.protocol === 'https:'
+  const parts = [local
+    ? 'Make sure the local server is running and allows browser requests (CORS): for Ollama set OLLAMA_ORIGINS to this site’s address and restart it; in LM Studio turn on “Enable CORS” in the server settings.'
+    : 'Check the base URL. The server must allow direct browser requests (CORS); if it doesn’t, put a small proxy in front of it.']
+  if (pageHttps && url?.protocol === 'http:' && !local) parts.push('This page is served over HTTPS, so browsers block plain-HTTP servers; use an HTTPS URL.')
+  return parts.join(' ')
+}
+
+/** Clear, actionable errors for any custom server (all three formats), plus hints the session uses to adapt. */
+export function classifyCustom(label: string) {
+  return (model: string) => (status: number, data: unknown): Classified => {
+    const message = errorMessage(data) || ''
+    const client = status === 400 || status === 404 || status === 405 || status === 415 || status === 422 || status === 501
+    if (status === 401) return { error: new AIError(`${label} rejected the API key. Check the key and auth settings in AI Settings.`, { status }), retry: false }
+    if (status === 403) return { error: new AIError(message || `${label} refused the request (403). Check the key’s permissions.`, { status }), retry: false }
+    if (status === 402) return { error: new AIError(`Your ${label} account has no remaining credit.`, { status }), retry: false }
+    if (client && TOOLS_UNSUPPORTED.test(message)) return { error: toolsUnsupportedError(label, model, status), retry: false }
+    if (client && STREAM_UNSUPPORTED.test(message)) return { error: new AIError(message, { status, unsupported: 'stream' }), retry: false }
+    if (client && IMAGES_UNSUPPORTED.test(message)) return { error: new AIError(message, { status, unsupported: 'images' }), retry: false }
+    if (client && /reasoning_content/i.test(message)) return { error: new AIError(message, { status, unsupported: 'reasoning' }), retry: false }
+    if (status === 404) return { error: new AIError(`${label} has no model “${model}”, or the base URL is wrong${message ? ` (${message})` : ''}. Check both in AI Settings.`, { status, modelMissing: true }), retry: false }
+    if (status === 429) return { error: new AIError(`${label} has reached its rate limit. Wait a moment and retry.`, { status }), retry: true }
+    return { error: new AIError(message ? `${label}: ${message}` : `${label} request failed (${status}).`, { status }), retry: status >= 500 || status === 408 }
+  }
+}
+

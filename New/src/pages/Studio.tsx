@@ -48,7 +48,7 @@ import { DESIGN_TOOL_DECLARATIONS } from '../lib/design-tools'
 import { TypographyEditor } from '../components/TypographyEditor'
 import { ArtworkEditor } from '../components/ArtworkEditor'
 import { downloadFile, readImage, safeName } from '../lib/utils'
-import { isConfigured, loadSettings, PROVIDERS } from '../lib/ai-settings'
+import { isConfigured, loadSettings, providerName as getProviderName } from '../lib/ai-settings'
 import { chatWithAI } from '../lib/gemini'
 import { changeSummary } from '../lib/ai/labels'
 import { useFrameThrottle } from '../lib/use-frame-throttle'
@@ -275,7 +275,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
   const [templateFilter, setTemplateFilter] = useState('All')
   const [downloadMenu, setDownloadMenu] = useState(false)
   const aiActive = isConfigured()
-  const providerName = aiActive ? PROVIDERS[loadSettings().provider].name : ''
+  const providerName = aiActive ? getProviderName(loadSettings()) : ''
   const [progress, setProgress] = useState('')
   const [streamText, setStreamText] = useState('')
   /** Drives the AI-cursor overlay: each completed tool call = one extra "click". */
@@ -390,7 +390,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
   const send = async (text = input, mode: 'chat' | 'magic' = 'chat') => {
     const value = text.trim()
     if (!value || uploading) return
-    if (!isConfigured()) { notify('Connect your AI key in Admin → Settings to use the design assistant.', 'info'); return }
+    if (!isConfigured()) { notify('Finish setting up your AI provider in Admin → Settings to use the design assistant.', 'info'); return }
     // A new message replaces the running request: cancel it, restore its starting design, then continue from there.
     const superseding = !!requestRef.current
     if (superseding) {
@@ -492,7 +492,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
       setSearchParams({}, { replace: true })
       const brief = design.brief.trim()
       if (!brief) return
-      if (!isConfigured()) { setMagicMode(true); notify('Connect your AI key in Admin → Settings to use Magic Build.', 'info'); return }
+      if (!isConfigured()) { setMagicMode(true); notify('Finish setting up your AI provider in Admin → Settings to use Magic Build.', 'info'); return }
       void send(brief, 'magic')
     }, 0)
     return () => clearTimeout(timer)

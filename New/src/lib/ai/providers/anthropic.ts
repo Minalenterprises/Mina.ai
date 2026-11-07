@@ -1,4 +1,4 @@
-import { AIError, errorMessage, newId, parseEvent, readSSE, requestWithRetry, resultText, type Classified, type ProviderSession, type SessionInit, type ToolOutcome, type TurnHooks, type TurnResult } from '../core'
+import { AIError, classifyCustom, corsHint, errorMessage, isJsonResponse, newId, parseEvent, readSSE, requestWithRetry, resultText, TOOLS_UNSUPPORTED, toolsUnsupportedError, type Classified, type Endpoint, type ProviderSession, type SessionInit, type ToolOutcome, type TurnHooks, type TurnResult } from '../core'
 
 /** Anthropic Messages API adapter, called directly from the browser. */
 const API = 'https://api.anthropic.com/v1'
@@ -10,6 +10,17 @@ const headers = (apiKey: string) => ({
   // Required for direct browser calls; the key is the user's own and stays in their browser.
   'anthropic-dangerous-direct-browser-access': 'true',
 })
+
+/** Where a session sends requests: Anthropic itself, or a custom Anthropic-format endpoint. */
+type Target = { api: string; label: string; headers: () => Record<string, string>; classify: (model: string) => (status: number, data: unknown) => Classified; networkHint?: string; custom: boolean }
+function target(apiKey: string, endpoint?: Endpoint): Target {
+  if (!endpoint) return { api: API, label: LABEL, headers: () => headers(apiKey), classify, custom: false }
+  const official = /^https:\/\/api\.anthropic\.com\//.test(`${endpoint.base}/`)
+  return {
+    api: endpoint.base, label: endpoint.label, custom: true, classify: classifyCustom(endpoint.label), networkHint: corsHint(endpoint.base),
+    headers: () => ({ 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', ...(official ? { 'anthropic-dangerous-direct-browser-access': 'true' } : {}), ...endpoint.headers() }),
+  }
+}
 
 type Block = { type: string; text?: string; id?: string; name?: string; input?: unknown; thinking?: string; signature?: string; data?: string; [key: string]: unknown }
 type Message = { role: 'user' | 'assistant'; content: Block[] }
@@ -52,7 +63,7 @@ function toMessages(init: SessionInit): Message[] {
 }
 
 /** Rebuilds the assistant message from stream events, preserving thinking blocks and their signatures for tool use. */
-async function readStream(body: ReadableStream<Uint8Array>, signal: AbortSignal, onText?: (text: string) => void): Promise<ApiMessage> {
+async function readStream(body: ReadableStream<Uint8Array>, signal: AbortSignal, onText?: (text: string) => void, label = LABEL): Promise<ApiMessage> {
   const blocks: Block[] = []
   const json: string[] = []
   let stopReason: string | undefined, text = '', failure: string | undefined
@@ -80,14 +91,16 @@ async function readStream(body: ReadableStream<Uint8Array>, signal: AbortSignal,
         else block.input ??= {}
       }
     } else if (type === 'message_delta' && payload.delta?.stop_reason) stopReason = payload.delta.stop_reason
-    else if (type === 'error') failure = payload.error?.message || 'Claude stream error.'
-  }, LABEL)
+    else if (type === 'error') failure = payload.error?.message || `${label} stream error.`
+  }, label)
   if (failure) throw new AIError(failure)
   return { content: blocks.filter(Boolean), stop_reason: stopReason }
 }
 
 export function createSession(init: SessionInit): ProviderSession {
-  const { settings, apiKey, system, stream, model } = init
+  const { settings, apiKey, system, model } = init
+  let stream = init.stream
+  const to = target(apiKey, init.endpoint)
   const messages = toMessages(init)
   const tools = init.tools.map((tool, index, all) => ({ name: tool.name, description: tool.description, input_schema: tool.parameters, ...(index === all.length - 1 ? { cache_control: { type: 'ephemeral' } } : {}) }))
   /** Tool results stay as objects until each request, so older ones can be compacted in place. */
@@ -102,17 +115,35 @@ export function createSession(init: SessionInit): ProviderSession {
     async turn(hooks: TurnHooks): Promise<TurnResult> {
       // The system prompt and tools are identical every round, so they are cached to speed up follow-up rounds.
       const body = { model, system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }], messages: serialise(), tools, tool_choice: { type: 'auto' }, max_tokens: settings.maxOutputTokens, stream }
-      const response = await requestWithRetry({
-        url: `${API}/messages`, init: { method: 'POST', headers: headers(apiKey), body: JSON.stringify(body) },
-        signal: hooks.signal, label: LABEL, onProgress: hooks.onProgress, classify: classify(model),
+      const send = () => requestWithRetry({
+        url: `${to.api}/messages`, init: { method: 'POST', headers: to.headers(), body: JSON.stringify({ ...body, stream }) },
+        signal: hooks.signal, label: to.label, onProgress: hooks.onProgress, networkHint: to.networkHint, classify: to.classify(model),
       })
-      const data = stream && response.body ? await readStream(response.body, hooks.signal, hooks.onText) : await response.json() as ApiMessage
+      let response: Response
+      try { response = await send() } catch (error) {
+        // Custom servers without streaming are asked again without it.
+        if (!(to.custom && stream && error instanceof AIError && error.unsupported === 'stream')) throw error
+        stream = false
+        response = await send()
+      }
+      let data: ApiMessage
+      if (stream && response.body && !isJsonResponse(response)) {
+        try { data = await readStream(response.body, hooks.signal, hooks.onText, to.label) } catch (error) {
+          if (to.custom && error instanceof AIError && TOOLS_UNSUPPORTED.test(error.message)) throw toolsUnsupportedError(to.label, model)
+          throw error
+        }
+      } else {
+        data = await response.json() as ApiMessage
+        if (data.error?.message && !data.content?.length) throw new AIError(data.error.message)
+        const reply = (data.content || []).filter(block => block.type === 'text').map(block => block.text).join('')
+        if (init.stream && reply.trim()) hooks.onText?.(reply)
+      }
       // Empty text blocks are rejected when replayed, so they are dropped.
       const content = (data.content || []).filter(block => block.type !== 'text' || block.text?.trim())
       if (content.length) messages.push({ role: 'assistant', content })
       const calls = content.filter(block => block.type === 'tool_use').map(block => ({ id: block.id || newId(), name: block.name || '', args: block.input ?? {} }))
       const text = content.filter(block => block.type === 'text').map(block => block.text).join('').trim()
-      if (data.stop_reason === 'refusal' && !text) throw new AIError('Claude declined this request. Try rephrasing it.')
+      if (data.stop_reason === 'refusal' && !text) throw new AIError(`${to.label} declined this request. Try rephrasing it.`)
       if (data.stop_reason === 'pause_turn' && !calls.length) return { text, calls, finish: 'continue' }
       return { text, calls, finish: calls.length ? 'tool_calls' : data.stop_reason === 'max_tokens' ? 'length' : 'stop' }
     },
@@ -133,7 +164,8 @@ export function createSession(init: SessionInit): ProviderSession {
   }
 }
 
-export async function testKey(apiKey: string, model: string): Promise<{ success: boolean; error?: string }> {
+export async function testKey(apiKey: string, model: string, endpoint?: Endpoint): Promise<{ success: boolean; error?: string }> {
+  if (endpoint) return testCustom(model, target(apiKey, endpoint))
   try {
     const response = await fetch(`${API}/models/${encodeURIComponent(model)}`, { headers: headers(apiKey), signal: AbortSignal.timeout(15000) })
     if (response.ok) return { success: true }
@@ -144,9 +176,23 @@ export async function testKey(apiKey: string, model: string): Promise<{ success:
   } catch (error) { return { success: false, error: error instanceof Error ? error.message : 'Network error' } }
 }
 
-export async function listModels(apiKey: string, signal?: AbortSignal) {
-  const response = await fetch(`${API}/models?limit=100`, { headers: headers(apiKey), signal: AbortSignal.any([signal || new AbortController().signal, AbortSignal.timeout(15000)]) })
-  const data = await response.json() as { data?: { id: string; display_name?: string }[] }
-  if (!response.ok) throw new AIError(errorMessage(data) || 'Could not list Claude models.')
-  return (data.data || []).map(model => ({ id: model.id, name: model.display_name || model.id }))
+/** Custom Anthropic-format servers: one tiny Messages request with a tool attached checks URL, key, model and tool support. */
+async function testCustom(model: string, to: Target): Promise<{ success: boolean; error?: string }> {
+  try {
+    const body = { model, max_tokens: 64, messages: [{ role: 'user', content: 'Reply with OK.' }], tools: [{ name: 'ping', description: 'Connectivity check. Do not call.', input_schema: { type: 'object', properties: {} } }] }
+    const response = await requestWithRetry({ url: `${to.api}/messages`, init: { method: 'POST', headers: to.headers(), body: JSON.stringify(body) }, signal: AbortSignal.timeout(30000), label: to.label, attempts: 1, timeoutMs: 30000, networkHint: to.networkHint, classify: to.classify(model) })
+    const data = await response.json().catch(() => undefined) as ApiMessage | undefined
+    return Array.isArray(data?.content) ? { success: true } : { success: false, error: `${to.label} answered, but not in the Anthropic Messages format. Check the base URL and API format.` }
+  } catch (error) { return { success: false, error: error instanceof Error ? error.message : 'Network error' } }
+}
+
+export async function listModels(apiKey: string, signal?: AbortSignal, endpoint?: Endpoint) {
+  const to = target(apiKey, endpoint)
+  let response: Response
+  try {
+    response = await fetch(`${to.api}/models?limit=100`, { headers: to.headers(), signal: AbortSignal.any([signal || new AbortController().signal, AbortSignal.timeout(15000)]) })
+  } catch (error) { throw new AIError(`Couldn’t reach ${to.label} (${error instanceof Error ? error.message : 'network error'}). ${to.networkHint || 'Check your connection.'}`) }
+  const data = await response.json().catch(() => undefined) as { data?: { id: string; display_name?: string }[] } | undefined
+  if (!response.ok) throw new AIError(errorMessage(data) || `Could not list ${to.label} models (${response.status}).`)
+  return (data?.data || []).map(model => ({ id: model.id, name: model.display_name || model.id }))
 }
