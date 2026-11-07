@@ -1,21 +1,25 @@
-import { useState } from 'react'
-import { TEXTURES, getSurface, textureCanvas } from '../lib/textures'
+import { memo, useCallback, useMemo, useState } from 'react'
+import { TEXTURES, getSurface } from '../lib/textures'
+import { textureCanvas } from '../lib/texture-canvas'
 import { getProductInfo, validBarcode } from '../lib/product-info'
 import type { Design, ProductInfo, Surface } from '../lib/types'
 
-function TextureCard({ id, name, selected, onClick }: { id: string; name: string; selected: boolean; onClick: () => void }) {
-  const [preview] = useState(() => textureCanvas(id, .9, 128).toDataURL())
-  return <button type="button" className={`texture-card ${selected ? 'selected' : ''}`} aria-pressed={selected} onClick={onClick}><img src={preview} alt="" /><span>{name}</span></button>
-}
+const thumbs = new Map<string, string>()
+const thumbnail = (id: string) => { let url = thumbs.get(id); if (!url) { url = textureCanvas(id, .9, 128).toDataURL(); thumbs.set(id, url) } return url }
+const TextureCard = memo(function TextureCard({ id, name, selected, onSelect }: { id: string; name: string; selected: boolean; onSelect: (id: string) => void }) {
+  const preview = useMemo(() => thumbnail(id), [id])
+  return <button type="button" className={`texture-card ${selected ? 'selected' : ''}`} aria-pressed={selected} onClick={() => onSelect(id)}><img src={preview} alt="" loading="lazy" /><span>{name}</span></button>
+})
 export function SurfaceEditor({ design, onChange }: { design: Design; onChange: (patch: Partial<Design>) => void }) {
   const surface = getSurface(design)
   const [category, setCategory] = useState('All')
   const [limit, setLimit] = useState(12)
   const update = (patch: Partial<Surface>) => onChange({ surface: { ...surface, ...patch } })
+  const selectTexture = useCallback((texture: string) => onChange({ surface: { ...surface, texture } }), [onChange, surface])
   const textures = TEXTURES.filter(texture => category === 'All' || texture.category === category)
-  return <section className="surface-editor"><div className="typography-heading"><strong>Surface & texture</strong><span>28 finishes</span></div><p>Paper grains, woven fabrics, natural surfaces, metal finishes, and printed patterns. The AI can apply these same textures.</p>
+  return <section className="surface-editor"><div className="typography-heading"><strong>Surface & texture</strong><span>{TEXTURES.length} finishes</span></div><p>Paper grains, washi and handmade stocks, woven fabrics and velvet, wood, marble and leather, metallic, holographic and pearlescent foils, and embossed patterns. The AI can apply these same textures.</p>
     <select aria-label="Texture category" value={category} onChange={e => { setCategory(e.target.value); setLimit(12) }}><option>All</option>{[...new Set(TEXTURES.map(texture => texture.category))].map(group => <option key={group}>{group}</option>)}</select>
-    <div className="texture-grid">{textures.slice(0, limit).map(texture => <TextureCard key={texture.id} {...texture} selected={surface.texture === texture.id} onClick={() => update({ texture: texture.id })} />)}</div>
+    <div className="texture-grid">{textures.slice(0, limit).map(texture => <TextureCard key={texture.id} {...texture} selected={surface.texture === texture.id} onSelect={selectTexture} />)}</div>
     {textures.length > limit && <button type="button" className="button button-outline button-sm" onClick={() => setLimit(limit + 12)}>More textures</button>}
     <p>Selected: <strong>{TEXTURES.find(texture => texture.id === surface.texture)?.name || 'Smooth'}</strong></p>
     <label className="field">Pattern size · {surface.scale}×<input type="range" min={.25} max={4} step={.25} value={surface.scale} onChange={e => update({ scale: Number(e.target.value) })} /></label>

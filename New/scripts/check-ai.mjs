@@ -7,7 +7,8 @@ const bundle = await build({ stdin: { contents: `export * from './src/lib/gemini
 const api = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
 const initial = api.newDesign('Typography regression test')
 const preview = { camera: 'front', openBox: false, autoRotate: false }
-assert.equal(api.TEXTURES.length, 28)
+assert.equal(api.TEXTURES.length, 62)
+assert.equal(new Set(api.TEXTURES.map(t => t.id)).size, api.TEXTURES.length)
 assert.equal(api.DESIGN_TOOL_DECLARATIONS.length, 19)
 assert.throws(() => api.validateSurface({ texture: 'Imaginary Material' }))
 assert.throws(() => api.validateSurface({ scale: 0 }))

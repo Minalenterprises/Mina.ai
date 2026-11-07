@@ -1,5 +1,6 @@
 import type { Design, PrintArtwork, PrintLayer } from './types'
-import { getSurface, textureCanvas } from './textures'
+import { getSurface } from './textures'
+import { textureCanvas } from './texture-canvas'
 
 export const DEFAULT_ARTWORK: PrintArtwork = { enabled: false, name: 'Custom print', tileSize: 80, rotation: 0, background: 'auto', layers: [] }
 export const getArtwork = (design: Design): PrintArtwork => ({ ...DEFAULT_ARTWORK, ...design.artwork })

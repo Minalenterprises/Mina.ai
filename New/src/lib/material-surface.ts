@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { getSurface, textureCanvas } from './textures'
+import { getSurface, TEXTURE_FINISHES } from './textures'
+import { textureCanvas } from './texture-canvas'
 import type { Design } from './types'
 import { getArtwork, printTile } from './print-artwork'
 
@@ -13,12 +14,20 @@ export function applySurface(material: THREE.MeshStandardMaterial, design: Desig
   map.anisotropy = 8
   material.map = map
   material.bumpMap = artwork.enabled ? null : map
-  material.bumpScale = worldScale * .6 * surface.strength
+  const finish = TEXTURE_FINISHES[surface.texture] || {}
+  material.bumpScale = worldScale * .6 * surface.strength * (finish.bump ?? 1)
   if (artwork.enabled) {
     material.color.set('#ffffff')
     map.userData.ready = printTile(design).then(canvas => { map.image = canvas; map.needsUpdate = true })
   }
-  if (['foil', 'hammered', 'brushed-metal'].includes(surface.texture)) { material.metalness = .7; material.roughness = design.finish === 'Gloss' ? .18 : .42 }
+  // Physical finish hints (metallic foils, iridescent holographic/pearl, velvet sheen) on top of the substrate preset.
+  if (finish.metalness !== undefined) material.metalness = finish.metalness
+  if (finish.roughness !== undefined) material.roughness = design.finish === 'Gloss' ? Math.min(finish.roughness, .2) : finish.roughness
+  if (material instanceof THREE.MeshPhysicalMaterial) {
+    if (finish.iridescence !== undefined) { material.iridescence = finish.iridescence * Math.max(.4, surface.strength); material.iridescenceIOR = 1.6; material.iridescenceThicknessRange = [180, 520] }
+    if (finish.sheen !== undefined) { material.sheen = finish.sheen; material.sheenRoughness = .6; material.sheenColor.set('#ffffff') }
+    if (finish.clearcoat !== undefined) { material.clearcoat = Math.max(material.clearcoat, finish.clearcoat); material.clearcoatRoughness = .12 }
+  }
   // Object-space triplanar mapping keeps the weave/grain proportionate on every face.
   material.onBeforeCompile = shader => {
     shader.uniforms.surfaceFrequency = { value: 1 / ((artwork.enabled ? artwork.tileSize : 64 * surface.scale) * worldScale) }
