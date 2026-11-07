@@ -2530,3 +2530,47 @@ html[data-theme='dark'] .composer { box-shadow: 0 1px 0 rgba(255,255,255,.04) in
 .sx .design-preview-bottom { top: 12px !important; bottom: auto !important; left: auto !important; right: 12px !important; justify-content: flex-end !important }
 .sx .design-preview-bottom > span { display: none !important }
 .sx .studio-main { padding-bottom: 12px !important }
+
+/* Studio v2.1 — chat panel, stripped back */
+.sx .studio-chat { background: var(--surface) !important; backdrop-filter: none; box-shadow: 0 1px 0 var(--line), 0 24px 48px -36px rgba(10,30,80,.3) !important }
+.sx .sx-chat-head { display: flex !important; align-items: center; gap: 10px; padding: 14px 14px 14px 18px !important; border-bottom: 0 !important }
+.sx-chat-mark { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: var(--ink); color: var(--bg) }
+.sx-chat-mark.busy { background: var(--blue); animation: sx-pulse .8s steps(2) infinite }
+.sx-chat-id { flex: 1; display: flex; align-items: baseline; gap: 8px }
+.sx .sx-chat-id h2 { font-family: 'Plus Jakarta Sans', sans-serif !important; font-size: 15px !important; font-weight: 700 !important; letter-spacing: -.01em; margin: 0 }
+.sx-chat-id span { font-size: 12px; color: var(--ink-mute); display: inline-flex; align-items: center; gap: 6px }
+.sx-chat-id span::before { content: ''; width: 6px; height: 6px; border-radius: 1px; background: var(--ink-mute) }
+.sx-chat-id span.ok::before { background: var(--blue) }
+.sx .ai-connect-notice { display: none !important }
+.sx .studio-messages.sx-hide { display: none !important }
+.sx-empty { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 22px 18px; gap: 14px; animation: sx-rise .7s cubic-bezier(.22,1,.36,1) both }
+@keyframes sx-rise { from { opacity: 0; transform: translateY(14px) } }
+.sx-empty h3 { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: 46px; line-height: .98; letter-spacing: -.02em; color: var(--ink); margin: 0 }
+.sx-empty h3 em { font-style: italic; color: var(--blue) }
+.sx-empty p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--ink-soft); max-width: 30ch }
+.sx-ideas { display: flex; flex-direction: column; margin-top: 6px; border-top: 1px solid var(--line) }
+.sx-ideas button { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 2px; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--ink-soft); text-align: left; transition: color .2s, padding .3s cubic-bezier(.22,1,.36,1) }
+.sx-ideas button svg { transform: rotate(45deg); opacity: .4; transition: .3s }
+.sx-ideas button:hover { color: var(--ink); padding-left: 8px }
+.sx-ideas button:hover svg { opacity: 1; color: var(--blue); transform: rotate(90deg) }
+.sx .studio-message .message-avatar { display: none !important }
+.sx .message-assistant > div { background: none !important; border: 0 !important; padding: 0 !important }
+.sx .message-assistant p { color: var(--ink) !important; font-size: 14.5px !important }
+.sx .studio-messages { padding: 8px 18px 18px !important }
+.sx .chat-compose-area { padding: 0 !important; border: 0 !important; background: none !important }
+.sx .chat-suggestions { display: flex !important; flex-wrap: wrap !important; overflow: visible !important; gap: 6px; padding: 0 14px 10px !important; mask: none !important }
+.sx .chat-suggestions button { height: 28px; padding: 0 11px !important; font-size: 12px !important }
+.sx .chat-suggestions button svg { display: none }
+.sx .studio-compose { margin: 0 12px !important; padding: 12px 12px 10px 16px !important; display: flex !important; flex-direction: column; gap: 6px; border-radius: 16px !important; box-shadow: none !important; background: var(--surface-2) !important; border: 1px solid transparent !important }
+.sx .studio-compose:focus-within { background: var(--surface) !important; border-color: var(--blue) !important }
+.sx .studio-compose textarea { padding: 0 !important; min-height: 44px; color: var(--ink) !important; box-shadow: none !important; outline: none !important }
+.sx .studio-compose textarea::placeholder { color: var(--ink-mute) }
+.sx .studio-compose > div { display: flex !important; justify-content: space-between !important; align-items: center; border: 0 !important; padding: 0 !important; margin: 0 !important }
+.sx .studio-compose > div > span { display: none !important }
+.sx .studio-compose .icon-button { width: 32px; height: 32px; border-radius: 9px; color: var(--ink-mute); background: none !important; border: 0 !important }
+.sx .studio-compose .icon-button:hover { color: var(--ink); background: var(--surface) !important }
+.sx .studio-compose .send-button { width: 32px !important; height: 32px !important; border-radius: 9px !important }
+.sx .studio-compose .send-button:disabled { background: var(--line) !important; color: var(--ink-mute) !important; opacity: 1 }
+.sx .assistant-disclosure { display: none !important }
+.sx-foot { margin: 0; padding: 10px 18px 14px; font-size: 11.5px; color: var(--ink-mute) }
+.sx-foot a { color: var(--blue); font-weight: 600 }
