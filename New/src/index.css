@@ -2616,3 +2616,64 @@ html[data-theme='dark'] .composer { box-shadow: 0 1px 0 rgba(255,255,255,.04) in
 @keyframes sx-zoom { from { opacity: 0; transform: scale(.96); filter: blur(12px) } }
 @keyframes sx-dock-in { from { opacity: 0; transform: translate(-50%, 40px) } to { transform: translate(-50%, 0) } }
 @media (prefers-reduced-motion: reduce) { .sx * { animation-duration: .01s !important; animation-delay: 0s !important } }
+
+/* ═══ New project — soft blurred field ═══ */
+.bp { position: relative; min-height: 100vh; overflow: hidden; background: var(--bg); color: var(--ink); display: flex; flex-direction: column; isolation: isolate }
+.bp-field { position: absolute; inset: -10%; z-index: -2; filter: blur(90px) saturate(1.1); opacity: .9 }
+.bp-field i { position: absolute; border-radius: 50%; will-change: transform }
+.bp-field i:nth-child(1) { width: 52vw; height: 52vw; left: 4%; top: 18%; background: #bcd3ff; animation: bp-a 26s ease-in-out infinite alternate }
+.bp-field i:nth-child(2) { width: 44vw; height: 44vw; right: 2%; top: 2%; background: #d9e6ff; animation: bp-b 32s ease-in-out infinite alternate }
+.bp-field i:nth-child(3) { width: 38vw; height: 38vw; right: 16%; bottom: -4%; background: #a9c4ff; opacity: .7; animation: bp-c 28s ease-in-out infinite alternate }
+.bp-field i:nth-child(4) { width: 30vw; height: 30vw; left: 30%; bottom: 10%; background: #e6eeff; animation: bp-a 36s ease-in-out infinite alternate-reverse }
+[data-theme='dark'] .bp-field { opacity: .75 }
+[data-theme='dark'] .bp-field i:nth-child(1) { background: #12307a }
+[data-theme='dark'] .bp-field i:nth-child(2) { background: #0b1d4d }
+[data-theme='dark'] .bp-field i:nth-child(3) { background: #1a3fa0; opacity: .55 }
+[data-theme='dark'] .bp-field i:nth-child(4) { background: #0e1630 }
+@keyframes bp-a { to { transform: translate(14vw, -8vh) scale(1.12) } }
+@keyframes bp-b { to { transform: translate(-12vw, 14vh) scale(.92) } }
+@keyframes bp-c { to { transform: translate(-16vw, -12vh) scale(1.18) } }
+.bp-grain { position: absolute; inset: 0; z-index: -1; opacity: .035; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E") }
+
+.bp-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 22px }
+.bp-ghost { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; color: var(--ink-soft); background: color-mix(in srgb, var(--surface) 55%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid color-mix(in srgb, var(--line) 70%, transparent); transition: color .2s, background .2s }
+.bp-ghost:hover { color: var(--ink); background: var(--surface) }
+.bp-title { flex: 1; max-width: 420px; text-align: center; font: 600 14px/1 'Plus Jakarta Sans', sans-serif; letter-spacing: -.01em; color: var(--ink-soft); background: transparent; border: 0; outline: 0; padding: 9px 12px; border-radius: 10px; transition: background .2s, color .2s }
+.bp-title:hover { background: color-mix(in srgb, var(--surface) 50%, transparent) }
+.bp-title:focus { color: var(--ink); background: color-mix(in srgb, var(--surface) 75%, transparent) }
+
+.bp-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 20px 14vh; gap: 26px }
+.bp-hello { margin: 0; font: 400 clamp(34px, 4.4vw, 54px)/1.05 'Instrument Serif', serif; letter-spacing: -.02em; color: var(--ink); text-align: center }
+
+.bp-box { width: min(720px, 100%); padding: 18px 18px 12px 22px; border-radius: 28px; background: color-mix(in srgb, var(--surface) 72%, transparent); backdrop-filter: blur(28px) saturate(1.3); -webkit-backdrop-filter: blur(28px) saturate(1.3); border: 1px solid color-mix(in srgb, var(--surface) 60%, var(--line)); box-shadow: 0 1px 0 color-mix(in srgb, #fff 60%, transparent) inset, 0 30px 80px -40px rgba(20,50,120,.35); transition: box-shadow .4s, border-color .4s, transform .4s cubic-bezier(.22,1,.36,1) }
+[data-theme='dark'] .bp-box { box-shadow: 0 1px 0 rgba(255,255,255,.06) inset, 0 30px 80px -40px rgba(0,0,0,.8) }
+.bp-box:focus-within { border-color: color-mix(in srgb, var(--blue) 45%, transparent); box-shadow: 0 1px 0 rgba(255,255,255,.5) inset, 0 0 0 5px color-mix(in srgb, var(--blue) 9%, transparent), 0 34px 90px -40px rgba(20,50,120,.45) }
+.bp-box textarea { width: 100%; min-height: 56px; resize: none; border: 0; outline: 0; background: transparent; font: 400 17px/1.5 'Plus Jakarta Sans', sans-serif; color: var(--ink); padding: 4px 0 0 }
+.bp-box textarea::placeholder { color: var(--ink-mute) }
+.bp-row { display: flex; align-items: center; gap: 8px; margin-top: 10px }
+.bp-tool { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; color: var(--ink-mute) }
+.bp-tool:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent) }
+.bp-agent { display: inline-flex; align-items: center; gap: 9px; height: 36px; padding: 0 8px 0 11px; border-radius: 999px; font: 600 13px 'Plus Jakarta Sans', sans-serif; color: var(--ink-soft); border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 60%, transparent); transition: color .3s, border-color .3s, background .3s }
+.bp-agent.on { color: var(--blue); border-color: color-mix(in srgb, var(--blue) 35%, transparent); background: color-mix(in srgb, var(--blue) 8%, transparent) }
+.bp-agent-dot { display: grid; grid-template-columns: 4px 4px; gap: 2px }
+.bp-agent-dot i { width: 4px; height: 4px; border-radius: 1px; background: currentColor; opacity: .35 }
+.bp-agent.on .bp-agent-dot i { opacity: 1; animation: bp-blink 1.6s steps(1) infinite }
+.bp-agent.on .bp-agent-dot i:nth-child(2) { animation-delay: .4s } .bp-agent.on .bp-agent-dot i:nth-child(4) { animation-delay: .8s } .bp-agent.on .bp-agent-dot i:nth-child(3) { animation-delay: 1.2s }
+@keyframes bp-blink { 50% { opacity: .25 } }
+.bp-switch { width: 26px; height: 16px; border-radius: 999px; background: var(--line); position: relative; transition: background .3s }
+.bp-switch b { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform .35s cubic-bezier(.22,1,.36,1) }
+.bp-agent.on .bp-switch { background: var(--blue) }
+.bp-agent.on .bp-switch b { transform: translateX(10px) }
+.bp-hint { flex: 1; font-size: 12.5px; color: var(--ink-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.bp-send { width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center; background: var(--ink); color: var(--bg); transition: transform .25s cubic-bezier(.22,1,.36,1), opacity .2s, background .2s }
+.bp-send:not(:disabled):hover { transform: translateY(-2px); background: var(--blue); color: #fff }
+.bp-send:disabled { opacity: .18 }
+
+.bp-ideas { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; max-width: 720px }
+.bp-ideas button { font-size: 13.5px; color: var(--ink-mute); padding: 6px 2px; transition: color .2s }
+.bp-ideas button:hover { color: var(--ink) }
+.bp-skip { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); font-size: 12.5px; color: var(--ink-mute); transition: color .2s }
+.bp-skip:hover { color: var(--blue) }
+@media (max-width: 640px) { .bp-hint { display: none } .bp-row { justify-content: space-between } }
+@media (prefers-reduced-motion: reduce) { .bp-field i { animation: none } }
+body:has(.bp) .launcher-label { display: none }
