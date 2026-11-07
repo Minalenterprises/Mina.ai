@@ -1,6 +1,5 @@
 import type { Design, PrintArtwork, PrintLayer } from './types'
 import { getSurface } from './textures'
-import { textureCanvas } from './texture-canvas'
 
 export const DEFAULT_ARTWORK: PrintArtwork = { enabled: false, name: 'Custom print', tileSize: 80, rotation: 0, background: 'auto', layers: [] }
 export const getArtwork = (design: Design): PrintArtwork => ({ ...DEFAULT_ARTWORK, ...design.artwork })
@@ -87,6 +86,8 @@ export async function printTile(design: Design, size = 512) {
     ctx.resetTransform()
   }
   if (surface.texture !== 'none') {
+    // Generators load on first use, keeping them out of the validation / AI-tools bundle.
+    const { textureCanvas } = await import('./texture-canvas')
     ctx.globalCompositeOperation = 'multiply'
     const grain = textureCanvas(surface.texture, surface.strength, size)
     const repeat = ctx.createPattern(grain, 'repeat')!

@@ -40,19 +40,21 @@ import { Dieline, FlatDesignView } from '../components/Dieline'
 import { useStore } from '../lib/store'
 import { newDesign, uid, type Design, type Template, type ToolActivity, type PreviewSettings } from '../lib/types'
 import { previewKey } from '../lib/design-tools'
-import { SurfaceEditor, ProductInfoEditor } from '../components/SurfaceEditor'
 import { getSurface, TEXTURES } from '../lib/textures'
 import { getTypography, printedText } from '../lib/typography'
 import { getProductInfo } from '../lib/product-info'
 import { DESIGN_TOOL_DECLARATIONS } from '../lib/design-tools'
 import { TypographyEditor } from '../components/TypographyEditor'
-import { ArtworkEditor } from '../components/ArtworkEditor'
 import { downloadFile, readImage, safeName } from '../lib/utils'
 import { isConfigured } from '../lib/ai-settings'
 import { chatWithGemini } from '../lib/gemini'
 
 const ProductScene = lazy(() => import('../components/ProductScene'))
 const TemplateLibrary = lazy(() => import('../components/TemplateLibrary'))
+// Drawers load on first open: texture generators, print editor and image generation stay out of the Studio chunk.
+const SurfaceEditor = lazy(() => import('../components/SurfaceEditor').then(m => ({ default: m.SurfaceEditor })))
+const ProductInfoEditor = lazy(() => import('../components/SurfaceEditor').then(m => ({ default: m.ProductInfoEditor })))
+const ArtworkEditor = lazy(() => import('../components/ArtworkEditor').then(m => ({ default: m.ArtworkEditor })))
 
 const CODE_PRESETS = [
   {
@@ -985,9 +987,9 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
             </div>
           </div>
 
-          <AnimatePresence>{showArtwork && <motion.div className="specs-drawer print-drawer" initial={{ opacity: 0, x: 280 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 280 }}><div className="specs-drawer-header"><h3>Print designs & images</h3><button className="icon-button" aria-label="Close print designs" onClick={() => setShowArtwork(false)}><X size={18} /></button></div><div className="specs-drawer-content"><ArtworkEditor design={design} onChange={patch} /></div></motion.div>}</AnimatePresence>
+          <AnimatePresence>{showArtwork && <motion.div className="specs-drawer print-drawer" initial={{ opacity: 0, x: 280 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 280 }}><div className="specs-drawer-header"><h3>Print designs & images</h3><button className="icon-button" aria-label="Close print designs" onClick={() => setShowArtwork(false)}><X size={18} /></button></div><div className="specs-drawer-content"><Suspense fallback={<p className="panel-description">Loading print designs…</p>}><ArtworkEditor design={design} onChange={patch} /></Suspense></div></motion.div>}</AnimatePresence>
           <AnimatePresence>{showType && <motion.div className="specs-drawer" initial={{ opacity: 0, x: 280 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 280 }}><div className="specs-drawer-header"><h3>Typography & branding</h3><button className="icon-button" aria-label="Close typography" onClick={() => setShowType(false)}><X size={18} /></button></div><div className="specs-drawer-content"><TypographyEditor design={design} onChange={patch} /></div></motion.div>}</AnimatePresence>
-          <AnimatePresence>{showSurface && <motion.div className="specs-drawer" initial={{ opacity: 0, x: 280 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 280 }}><div className="specs-drawer-header"><h3>Textures & product information</h3><button className="icon-button" aria-label="Close textures" onClick={() => setShowSurface(false)}><X size={18} /></button></div><div className="specs-drawer-content"><SurfaceEditor design={design} onChange={patch} /><ProductInfoEditor design={design} onChange={patch} /></div></motion.div>}</AnimatePresence>
+          <AnimatePresence>{showSurface && <motion.div className="specs-drawer" initial={{ opacity: 0, x: 280 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 280 }}><div className="specs-drawer-header"><h3>Textures & product information</h3><button className="icon-button" aria-label="Close textures" onClick={() => setShowSurface(false)}><X size={18} /></button></div><div className="specs-drawer-content"><Suspense fallback={<p className="panel-description">Loading textures…</p>}><SurfaceEditor design={design} onChange={patch} /><ProductInfoEditor design={design} onChange={patch} /></Suspense></div></motion.div>}</AnimatePresence>
           {/* Slide-over Specs Editor Drawer */}
           <AnimatePresence>
             {showSpecs && (

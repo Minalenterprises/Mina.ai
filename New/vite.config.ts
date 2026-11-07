@@ -79,5 +79,20 @@ export default defineConfig(async ({ mode }) => {
     plugins,
     envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
     define: processEnvDefines,
+    build: {
+      rollupOptions: {
+        output: {
+          // Long-lived vendor chunks: app deploys no longer invalidate the cached three.js / React / motion code.
+          manualChunks(id: string) {
+            if (!id.includes('node_modules')) return undefined
+            if (id.includes('/three/')) return 'vendor-three'
+            if (/\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(id)) return 'vendor-react'
+            if (id.includes('framer-motion') || id.includes('motion-dom') || id.includes('motion-utils')) return 'vendor-motion'
+            if (id.includes('lucide-react')) return 'vendor-icons'
+            return undefined
+          },
+        },
+      },
+    },
   }
 })

@@ -1,16 +1,18 @@
-import { useRef, useState } from 'react'
+import { lazy, Suspense, useRef, useState } from 'react'
 import { resolveShape, shapeInfo, shapePatch, SHAPES, type ShapeId } from '../lib/shapes'
 import { ArrowRight, Download, Upload, X, Check, FileText, Leaf } from 'lucide-react'
 import type { Design } from '../lib/types'
 import { downloadFile, readImage, safeName } from '../lib/utils'
-import { SurfaceEditor, ProductInfoEditor } from './SurfaceEditor'
 import { TypographyEditor } from './TypographyEditor'
-import { ArtworkEditor } from './ArtworkEditor'
 import { useStore } from '../lib/store'
 import { NumberField } from './NumberField'
 import { getTypography, printedText } from '../lib/typography'
 import { getSurface, TEXTURES } from '../lib/textures'
 import { getProductInfo, infoCopy } from '../lib/product-info'
+
+const SurfaceEditor = lazy(() => import('./SurfaceEditor').then(m => ({ default: m.SurfaceEditor })))
+const ProductInfoEditor = lazy(() => import('./SurfaceEditor').then(m => ({ default: m.ProductInfoEditor })))
+const ArtworkEditor = lazy(() => import('./ArtworkEditor').then(m => ({ default: m.ArtworkEditor })))
 const colors = ['#b8c9ac', '#c9bade', '#e2a18b', '#a9c3df', '#edda91', '#e6ddc5', '#393b36']
 // This helper is also used by the studio export menu.
 // eslint-disable-next-line react-refresh/only-export-components
@@ -38,9 +40,11 @@ export function PlanEditor({ design, onChange, onGenerate }: { design: Design; o
       <div className="field-row"><label className="field">Inside color<input type="color" value={design.innerColor || design.color} onChange={e => onChange({ innerColor: e.target.value })} /></label><label className="field">Accent color<input type="color" value={design.accentColor || design.color} onChange={e => onChange({ accentColor: e.target.value })} /></label></div>
       <div className="field-row"><label className="field">Wall thickness (mm)<NumberField min={.5} max={6} step={.5} value={design.wallThickness ?? 2} onChange={value => onChange({ wallThickness: value })} /></label><label className="field">Corner radius (mm)<NumberField min={0} max={20} value={design.cornerRadius ?? 2} onChange={value => onChange({ cornerRadius: value })} /></label></div>
       <TypographyEditor design={design} onChange={onChange} />
-      <ArtworkEditor design={design} onChange={onChange} />
-      <SurfaceEditor design={design} onChange={onChange} />
-      <ProductInfoEditor design={design} onChange={onChange} />
+      <Suspense fallback={<p className="panel-description">Loading editors…</p>}>
+        <ArtworkEditor design={design} onChange={onChange} />
+        <SurfaceEditor design={design} onChange={onChange} />
+        <ProductInfoEditor design={design} onChange={onChange} />
+      </Suspense>
       <label className="field">The little details<textarea value={design.notes} onChange={e => onChange({ notes: e.target.value })} rows={3} placeholder="What should make this feel special?" /></label>
       <div className="plan-note"><Leaf size={16} /><span>A thoughtful concept, ready to explore. Final material and structural details need a manufacturer's approval.</span></div>
       <div className="plan-footer"><span><Check size={13} /> Changes saved as you go</span><button type="submit" className="button button-dark">Bring it into 3D <ArrowRight size={17} /></button></div>
