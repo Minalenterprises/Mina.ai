@@ -50,7 +50,6 @@ import { ArtworkEditor } from '../components/ArtworkEditor'
 import { downloadFile, readImage, safeName } from '../lib/utils'
 import { isConfigured } from '../lib/ai-settings'
 import { chatWithGemini } from '../lib/gemini'
-import { exportToDxf } from '../lib/dxf-export'
 
 const ProductScene = lazy(() => import('../components/ProductScene'))
 const TemplateLibrary = lazy(() => import('../components/TemplateLibrary'))
@@ -431,7 +430,11 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
     }
   }
 
+  // The hidden export dieline is mounted only while an export runs, so normal editing never pays for
+  // re-rendering every printed panel to PNG in the background.
+  const [exportMount, setExportMount] = useState(false)
   const flatSvg = async () => {
+    setExportMount(true)
     const deadline = Date.now() + 15000
     const key = JSON.stringify({ ...design, messages: undefined, updatedAt: undefined })
     while (Date.now() < deadline) {
@@ -439,41 +442,64 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
       if (svg?.dataset.ready === 'true' && svg.dataset.designKey === key) {
         const copy = svg.cloneNode(true) as SVGElement
         copy.removeAttribute('class'); copy.removeAttribute('data-ready'); copy.removeAttribute('data-design-key')
-        return new XMLSerializer().serializeToString(copy)
+        return copy
       }
       await new Promise(resolve => setTimeout(resolve, 80))
     }
     throw new Error('Artwork is still loading or the design changed. Try exporting again.')
   }
+  const serialize = (svg: SVGElement) => new XMLSerializer().serializeToString(svg)
+  /** Rasterises the on-screen sheet at a print resolution (dpi), optionally without non-printing groups. */
+  const rasterizeFlat = async (dpi: number, maxSide: number, hide: string[] = []) => {
+    const svg = await flatSvg()
+    for (const id of hide) svg.querySelector(`#${id}`)?.remove()
+    const [,, w, h] = svg.getAttribute('viewBox')!.split(' ').map(Number)
+    const url = URL.createObjectURL(new Blob([serialize(svg)], { type: 'image/svg+xml' }))
+    try {
+      const image = new Image()
+      await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('Could not render the flat artwork.')); image.src = url })
+      const scale = Math.min(dpi / 25.4, maxSide / Math.max(w, h))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale)
+      const ctx = canvas.getContext('2d')!
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
+      return { canvas, dpi: Math.round(scale * 25.4) }
+    } finally { URL.revokeObjectURL(url) }
+  }
+  const editableSvg = async () => {
+    const { buildEditableSvg } = await import('../lib/vector-export')
+    return buildEditableSvg(design)
+  }
 
   const exportCdr = async () => {
     setDownloadMenu(false)
-    notify('Generating native CorelDRAW (.cdr) dieline...')
+    notify('Building the editable CorelDRAW artwork…')
+    let result: Awaited<ReturnType<typeof editableSvg>> | undefined
     try {
-      const res = await fetch('/api/generate-cdr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ design, svg: await flatSvg() })
-      })
+      result = await editableSvg()
+      const res = await fetch('/api/generate-cdr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ design: { name: design.name }, svg: result.svg }) })
       if (res.ok) {
-        const blob = await res.blob()
-        downloadFile(blob, `${safeName(design.name)}-dieline.cdr`, 'application/x-coreldraw')
-        notify('Native CorelDRAW (.cdr) dieline downloaded')
+        downloadFile(await res.blob(), `${safeName(design.name)}-editable.cdr`, 'application/x-coreldraw')
+        notify('Native CorelDRAW (.cdr) downloaded: live text, named layers and vector motifs.')
         return
       }
       const error = await res.json().catch(() => ({}))
-      throw new Error(error.error || `CorelDRAW export failed (HTTP ${res.status})`)
+      throw new Error(error.error || `CorelDRAW conversion unavailable (HTTP ${res.status}).`)
     } catch (error) {
-      notify(`${error instanceof Error ? error.message : 'CorelDRAW export failed.'} SVG includes the full artwork and can also be opened in CorelDRAW.`, 'info')
-    }
+      if (!result) { notify(error instanceof Error ? error.message : 'CorelDRAW export failed.', 'info'); return }
+      const { buildCorelPackage } = await import('../lib/cdr-export')
+      downloadFile(buildCorelPackage(design, result), `${safeName(design.name)}-coreldraw-package.zip`, 'application/zip')
+      notify(`${error instanceof Error ? error.message : 'Native .cdr conversion is unavailable here.'} Downloaded the CorelDRAW package instead: an editable layered SVG (live text, vector motifs) plus CMYK palette that CorelDRAW opens directly.`, 'info')
+    } finally { setExportMount(false) }
   }
 
-  const exportDxf = () => {
+  const exportDxf = async () => {
     try {
-      const dxfBlob = exportToDxf(design)
-      downloadFile(dxfBlob, `${safeName(design.name)}-dieline.dxf`, 'application/dxf')
+      const { exportToDxf } = await import('../lib/dxf-export')
+      downloadFile(exportToDxf(design), `${safeName(design.name)}-dieline.dxf`, 'application/dxf')
       setDownloadMenu(false)
-      notify('Dimensioned CAD geometry downloaded. Use SVG or CDR for printed artwork.')
+      notify('Dimensioned CAD geometry downloaded (cut, crease, perforation, dimensions).')
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Could not generate .dxf file', 'info')
     }
@@ -482,28 +508,36 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
   const exportSvg = async () => {
     setDownloadMenu(false)
     try {
-      downloadFile(await flatSvg(), `${safeName(design.name)}-full-design.svg`, 'image/svg+xml')
-      notify('Full 2D artwork and dimensions downloaded at 1:1 millimeter scale.')
+      const result = await editableSvg()
+      downloadFile(result.svg, `${safeName(design.name)}-editable.svg`, 'image/svg+xml')
+      notify(`Editable SVG downloaded: ${result.stats.texts} live text objects, ${result.stats.motifs} vector motifs, ${result.stats.layers.length} named layers at 1:1 mm.`)
     } catch (error) { notify(error instanceof Error ? error.message : 'SVG export failed.', 'info') }
   }
 
   const exportFlatPng = async () => {
     setDownloadMenu(false)
-    let url = ''
     try {
-      const source = await flatSvg(), svg = svgRef.current!.querySelector('svg')!
-      const [,, w, h] = svg.getAttribute('viewBox')!.split(' ').map(Number)
-      url = URL.createObjectURL(new Blob([source], { type: 'image/svg+xml' }))
-      const image = new Image()
-      await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('Could not render the flat artwork.')); image.src = url })
-      const canvas = document.createElement('canvas'), scale = Math.min(8, 4000 / Math.max(w, h))
-      canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale)
-      canvas.getContext('2d')!.drawImage(image, 0, 0, canvas.width, canvas.height)
+      const { canvas, dpi } = await rasterizeFlat(300, 8000)
       const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('PNG export failed.')), 'image/png'))
-      downloadFile(blob, `${safeName(design.name)}-full-design.png`, 'image/png')
-      notify('Full 2D design image downloaded.')
+      downloadFile(blob, `${safeName(design.name)}-full-design-${dpi}dpi.png`, 'image/png')
+      notify(`Full 2D design image downloaded at ${dpi} dpi.`)
     } catch (error) { notify(error instanceof Error ? error.message : 'PNG export failed.', 'info') }
-    finally { if (url) URL.revokeObjectURL(url) }
+    finally { setExportMount(false) }
+  }
+
+  const exportPdf = async () => {
+    setDownloadMenu(false)
+    notify('Rendering the 300 dpi print proof…')
+    try {
+      // Artwork (incl. bleed) is raster; die lines, marks and dimensions are re-drawn as CMYK vectors on PDF layers.
+      const { canvas } = await rasterizeFlat(300, 9000, ['Dimensions', 'Marks', 'SafeZone', 'DieCut', 'Crease', 'Perforation', 'Glue'])
+      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('PDF render failed.')), 'image/jpeg', .92))
+      const { exportPrintPdf } = await import('../lib/pdf-export')
+      const pdf = await exportPrintPdf(design, new Uint8Array(await blob.arrayBuffer()), { width: canvas.width, height: canvas.height })
+      downloadFile(pdf, `${safeName(design.name)}-print-proof.pdf`, 'application/pdf')
+      notify('Print-proof PDF downloaded: 300 dpi artwork with vector cut, crease and marks on separate layers.')
+    } catch (error) { notify(error instanceof Error ? error.message : 'PDF export failed.', 'info') }
+    finally { setExportMount(false) }
   }
 
   const exportPng = () => {
@@ -880,7 +914,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                     </div>
                   </>
                 ) : (
-                  <span>Millimeter dimensions · Pink cut / cyan fold · Full artwork in SVG & CDR</span>
+                  <span>1:1 mm · cut / crease / perf · 3 mm bleed & safe zone · crop marks · editable SVG, CorelDRAW & PDF export</span>
                 )}
               </div>
             </div>
@@ -913,15 +947,16 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                 {downloadMenu && (
                   <div className="download-menu">
                     <button onClick={exportCdr}>
-                      <Layers3 size={15} /> CorelDRAW Dieline (.cdr)
+                      <Layers3 size={15} /> CorelDRAW, fully editable (.cdr / package)
                     </button>
+                    <button onClick={exportPdf}><FileText size={15} /> Print-proof PDF (300 dpi + vector die lines)</button>
                     <button onClick={exportDxf}>
                       <FileText size={15} /> AutoCAD / Laser Die (.dxf)
                     </button>
                     <button onClick={exportSvg}>
-                      <Layers3 size={15} /> Full design & dimensions (.svg)
+                      <Layers3 size={15} /> Editable vector SVG (live text, layers)
                     </button>
-                    <button onClick={exportFlatPng}><ImagePlus size={15} /> Full 2D design image (.png)</button>
+                    <button onClick={exportFlatPng}><ImagePlus size={15} /> Full 2D design image (300 dpi .png)</button>
                     <button onClick={() => { downloadFile(JSON.stringify(design, null, 2), `${safeName(design.name)}-design.json`, 'application/json'); setDownloadMenu(false) }}><FileText size={15} /> Editable project backup (.json)</button>
                     <button
                       onClick={() => {
@@ -946,7 +981,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
               3D concept preview · Print dimensions and structure need manufacturer review.
             </p>
             <div ref={svgRef} className="export-dieline">
-              <Dieline design={design} />
+              {exportMount && <Dieline design={design} />}
             </div>
           </div>
 

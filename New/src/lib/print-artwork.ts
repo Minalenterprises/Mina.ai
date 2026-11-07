@@ -7,6 +7,8 @@ export const getArtwork = (design: Design): PrintArtwork => ({ ...DEFAULT_ARTWOR
 export const newPrintLayer = (shape: PrintLayer['shape'] = 'ellipse'): PrintLayer => ({ name: 'New motif', shape, x: 50, y: 50, width: 25, height: 25, rotation: 0, fill: '#233c60', stroke: 'none', strokeWidth: 1, opacity: 1 })
 const leafPath = 'M 0 -50 C 70 -45 70 45 0 50 C -70 45 -70 -45 0 -50 Z'
 const petalPath = 'M 0 50 C -70 10 -50 -50 0 -50 C 50 -50 70 10 0 50 Z'
+/** Built-in motif outlines in the shared −50…50 motif space (used by vector exports). */
+export const MOTIF_PATHS = { leaf: leafPath, petal: petalPath }
 function flower(x: number, y: number, color: string, size = 36): PrintLayer[] {
   return [...Array.from({ length: 6 }, (_, i) => ({ ...newPrintLayer('petal'), name: `Petal ${i + 1}`, x: x + Math.sin(i * Math.PI / 3) * size * .24, y: y + Math.cos(i * Math.PI / 3) * size * .24, width: size * .4, height: size * .55, rotation: -i * 60, fill: color })), { ...newPrintLayer(), name: 'Flower center', x, y, width: size * .15, height: size * .15, fill: '#e6bc68' }]
 }

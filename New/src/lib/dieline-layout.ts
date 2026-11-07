@@ -177,6 +177,7 @@ export function buildDieline(design: Design): FlatLayout {
   const xs = result.rules.flatMap(r => r.points.map(p => p[0])).concat(result.dimensions.map(d => Math.max(d.x1, d.x2) + 14))
   const ys = result.rules.flatMap(r => r.points.map(p => p[1])).concat(result.dimensions.map(d => Math.max(d.y1, d.y2) + 8))
   for (const h of result.holes) { xs.push(h.x + h.radius); ys.push(h.y + h.radius) }
+  // The 24 mm margins below also hold bleed (3), crop-mark offset (3) and crop marks (6).
   result.width = Math.max(320, ...xs) + 24
   if (design.customCode) result.notes.push('Custom 3D code is not unfolded; this sheet shows the nominal base packaging.')
   result.footerY = Math.max(...ys) + 24
@@ -475,7 +476,9 @@ function cartonVariant(design: Design, shape: string, result: FlatLayout, T: Too
     if (!f.name) return
     const art: Panel['artwork'] = !infoBack && !bottomInfo && depth(f) >= W * .7 ? 'info' : undefined
     if (art) bottomInfo = true
-    T.polygonPanel(`bottom-${i}`, f.name, placed.pts, art)
+    const bp = T.polygonPanel(`bottom-${i}`, f.name, placed.pts, art)
+    // Keep the information block on the solid part of the flap (above lock notches and tongues).
+    if (art) bp.frame = { width: lengths[i] * .84, height: Math.min(depth(f), W) * .62, cy: y + Hb + Math.min(depth(f), W) * .36 }
     T.line('fold', starts[i], y + Hb, starts[i] + lengths[i], y + Hb)
     placed.folds.forEach(line => T.poly('fold', line, false))
   })
@@ -632,4 +635,80 @@ function buildStructures(design: Design, shape: string, result: FlatLayout, T: T
     T.dimH(a[0], Math.max(a[1], b[1]) + 10, L, 'Base edge')
     result.notes.push(`Edges ${mm(L)} / ${mm(W)} mm (seals) and ${mm(e)} mm (slant). Top and bottom seals are crossed at 90°.`)
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Print production layers shared by the on-screen 2D view, the vector SVG/CorelDRAW export and PDF
+// ---------------------------------------------------------------------------------------------
+
+/** Standard print allowances (mm). */
+export const PRINT_SPEC = { bleed: 3, safe: 3, cropLength: 6, cropOffset: 3 }
+
+function inside(point: Point, polygon: Point[]) {
+  let hit = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i], [xj, yj] = polygon[j]
+    if ((yi > point[1]) !== (yj > point[1]) && point[0] < (xj - xi) * (point[1] - yi) / (yj - yi || 1e-9) + xi) hit = !hit
+  }
+  return hit
+}
+const area = (pts: Point[]) => Math.abs(pts.reduce((sum, p, i) => { const q = pts[(i + 1) % pts.length]; return sum + p[0] * q[1] - q[0] * p[1] }, 0) / 2)
+
+/** Closed cut outlines that are not inside another cut outline: the outer edges of each blank. */
+export function outerCuts(layout: FlatLayout): Point[][] {
+  const closed = layout.rules.filter(r => r.layer === 'cut' && r.closed && r.points.length >= 3).map(r => r.points)
+  return closed.filter(poly => !closed.some(other => other !== poly && area(other) > area(poly) && poly.every(p => inside(p, other) || other.some(q => Math.abs(q[0] - p[0]) < .01 && Math.abs(q[1] - p[1]) < .01))))
+}
+
+/** Bounding box of every cut line and hole. */
+export function cutBounds(layout: FlatLayout) {
+  const xs: number[] = [], ys: number[] = []
+  for (const r of layout.rules) if (r.layer === 'cut') for (const [x, y] of r.points) { xs.push(x); ys.push(y) }
+  for (const h of layout.holes) { xs.push(h.x - h.radius, h.x + h.radius); ys.push(h.y - h.radius, h.y + h.radius) }
+  if (!xs.length) return { x: 0, y: 0, width: layout.width, height: layout.height }
+  const x = Math.min(...xs), y = Math.min(...ys)
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y }
+}
+
+/** Panel safe area: the panel inset by the safe margin (polygons shrink towards their centroid). */
+export function safeOutline(p: Panel, margin = PRINT_SPEC.safe): Point[] | { cx: number; cy: number; r: number } | undefined {
+  if (p.circle) return p.width / 2 > margin * 2 ? { cx: p.x + p.width / 2, cy: p.y + p.height / 2, r: p.width / 2 - margin } : undefined
+  if (p.polygon) {
+    const cx = p.polygon.reduce((s, q) => s + q[0], 0) / p.polygon.length, cy = p.polygon.reduce((s, q) => s + q[1], 0) / p.polygon.length
+    const k = Math.max(0, 1 - margin * 2 / Math.max(1, Math.min(p.width, p.height)))
+    return k > .2 ? p.polygon.map(([x, y]): Point => [cx + (x - cx) * k, cy + (y - cy) * k]) : undefined
+  }
+  if (p.width <= margin * 3 || p.height <= margin * 3) return undefined
+  return [[p.x + margin, p.y + margin], [p.x + p.width - margin, p.y + margin], [p.x + p.width - margin, p.y + p.height - margin], [p.x + margin, p.y + p.height - margin]]
+}
+
+/** Crop marks (corner trim marks outside the bleed) and registration targets around the blank. */
+export function sheetMarks(layout: FlatLayout) {
+  const b = cutBounds(layout), { bleed, cropLength: len, cropOffset } = PRINT_SPEC, o = bleed + cropOffset
+  const x0 = b.x, y0 = b.y, x1 = b.x + b.width, y1 = b.y + b.height
+  const crop: [Point, Point][] = [
+    [[x0 - o - len, y0], [x0 - o, y0]], [[x0, y0 - o - len], [x0, y0 - o]],
+    [[x1 + o, y0], [x1 + o + len, y0]], [[x1, y0 - o - len], [x1, y0 - o]],
+    [[x0 - o - len, y1], [x0 - o, y1]], [[x0, y1 + o], [x0, y1 + o + len]],
+    [[x1 + o, y1], [x1 + o + len, y1]], [[x1, y1 + o], [x1, y1 + o + len]],
+  ]
+  const r = 2.6, gap = o + len + 3.5
+  // Left and right of the blank, where they never collide with dimension labels.
+  const registration = [{ x: x0 - gap, y: (y0 + y1) / 2 }, { x: x1 + gap, y: (y0 + y1) / 2 }].map(c => ({ ...c, r }))
+  return { crop, registration, bounds: b }
+}
+
+/** CMYK colour bar shown in the footer (process + two tints) for press checks. */
+export const COLOR_BAR: { label: string; hex: string; cmyk: [number, number, number, number] }[] = [
+  { label: 'C', hex: '#00a3e0', cmyk: [100, 0, 0, 0] }, { label: 'M', hex: '#e5007e', cmyk: [0, 100, 0, 0] }, { label: 'Y', hex: '#ffed00', cmyk: [0, 0, 100, 0] }, { label: 'K', hex: '#1d1d1b', cmyk: [0, 0, 0, 100] },
+  { label: 'K50', hex: '#9d9d9c', cmyk: [0, 0, 0, 50] }, { label: 'RICH', hex: '#0b0b0b', cmyk: [60, 40, 40, 100] },
+]
+
+/** Naive RGB → CMYK (0–100) for press notes; real separations use the printer's ICC profile. */
+export function hexToCmyk(hex: string): [number, number, number, number] {
+  const n = hex.replace('#', ''), full = n.length === 3 ? n.split('').map(c => c + c).join('') : n
+  const [r, g, b] = [0, 2, 4].map(i => parseInt(full.slice(i, i + 2), 16) / 255)
+  const k = 1 - Math.max(r, g, b)
+  if (k >= 1) return [0, 0, 0, 100]
+  return [(1 - r - k) / (1 - k), (1 - g - k) / (1 - k), (1 - b - k) / (1 - k), k].map(v => Math.round(v * 100)) as [number, number, number, number]
 }

@@ -34,7 +34,7 @@ function cdrMiddlewarePlugin(): Plugin {
           try {
             const request = JSON.parse(body) as { design?: { name?: string }; svg?: string }
             const svg = request.svg
-            if (typeof svg !== 'string' || !/^<svg\s/.test(svg) || !/width="[0-9.]+mm"/.test(svg) || !/height="[0-9.]+mm"/.test(svg) || /<!DOCTYPE|<script|<foreignObject|\son[a-z]+\s*=/i.test(svg) || /(?:href|xlink:href)="(?!#|data:image\/(?:png|jpeg);base64,)/i.test(svg)) {
+            if (typeof svg !== 'string' || !/^(?:<\?xml[^>]*\?>\s*)?<svg\s/.test(svg) || !/width="[0-9.]+mm"/.test(svg) || !/height="[0-9.]+mm"/.test(svg) || /<!DOCTYPE|<script|<foreignObject|\son[a-z]+\s*=/i.test(svg) || /(?:href|xlink:href)="(?!#|data:image\/(?:png|jpeg);base64,)/i.test(svg)) {
               fail(400, 'Export requires a self-contained SVG drawing from the studio.'); return
             }
             if (busy) { fail(409, 'Another CorelDRAW export is running. Try again shortly.'); return }
