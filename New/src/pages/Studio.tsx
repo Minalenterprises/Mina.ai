@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react'
+import { useCallback, useEffect, useRef, useState, lazy } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -31,6 +31,9 @@ import {
 } from 'lucide-react'
 import { Header } from '../components/Header'
 import { MinalMark } from '../components/Brand'
+import { RouteLoader } from '../components/LoadingScreen'
+import { SiriGlow, SiriOrb } from '../components/SiriGlow'
+import { SceneStage } from '../components/SceneStage'
 import { PlanEditor, downloadPlan } from '../components/PlanEditor'
 import { OrderModal } from '../components/OrderModal'
 import { Dieline, FlatDesignView } from '../components/Dieline'
@@ -223,10 +226,7 @@ function NewStudio() {
   }, [design, saveDesign, navigate])
 
   return (
-    <div className="studio-loading">
-      <MinalMark size={40} />
-      <span>Setting up your real-time 3D studio…</span>
-    </div>
+    <RouteLoader />
   )
 }
 
@@ -535,6 +535,10 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
     notify('Your 3D preview is downloaded.')
   }
 
+  // Drives the AI-cursor overlay: each completed tool call = one extra "click".
+  const completedTools = activeTools.filter(tool => tool.status === 'complete').length
+  const latestTool = activeTools.at(-1)?.summary
+
   const templateCategories = ['All', 'Bags & Retail', 'Boxes', 'Specialty']
   const filteredTemplates =
     templateFilter === 'All'
@@ -630,8 +634,9 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
         {showChat && (
           <aside className="studio-chat">
             <div className="studio-chat-header">
-              <span className="assistant-avatar">
-                <MinalMark size={23} />
+              <span className={`assistant-avatar ${thinking ? 'is-thinking' : ''}`}>
+                <SiriOrb active={thinking} size={42} />
+                <MinalMark size={20} />
               </span>
               <div>
                 <h2>AI Design Partner</h2>
@@ -683,7 +688,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                   <span className="message-avatar">
                     <MinalMark size={14} />
                   </span>
-                  <div className="harness-progress"><Loader2 size={16} className="spin" /><span>{progress || 'Planning…'}</span>{activeTools.slice(-3).map(tool => <small key={tool.id}>{tool.status === 'complete' ? '✓' : '!'} {tool.summary}</small>)}</div>
+                  <div className="harness-progress"><span className="thinking-line"><SiriOrb active size={16} /><span className="shimmer-text">{progress || 'Planning…'}</span></span>{activeTools.slice(-3).map(tool => <small key={tool.id}>{tool.status === 'complete' ? '✓' : '!'} {tool.summary}</small>)}</div>
                 </div>
               )}
 
@@ -723,12 +728,13 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
               )}
 
               <form
-                className="studio-compose"
+                className={`studio-compose ${thinking ? 'is-thinking' : ''}`}
                 onSubmit={e => {
                   e.preventDefault()
                   send()
                 }}
               >
+                <SiriGlow active={thinking} variant="ring" />
                 <textarea
                   aria-label="Message minal about your product"
                   placeholder={
@@ -818,14 +824,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
               </div>
 
               {view === '3d' || flatMode === 'projection' ? (
-                <Suspense
-                  fallback={
-                    <div className="scene-loading">
-                      <MinalMark size={30} />
-                      <span>Rendering 3D perspective…</span>
-                    </div>
-                  }
-                >
+                <SceneStage thinking={thinking} interactive3d={view === '3d'} pulse={completedTools} label={latestTool}>
                   <ProductScene
                     design={design}
                     openBox={openBox}
@@ -834,7 +833,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                     cameraView={view === '2d' && cameraView === 'perspective' ? 'front' : cameraView}
                     projection={view === '2d' ? 'orthographic' : 'perspective'}
                   />
-                </Suspense>
+                </SceneStage>
               ) : (
                 <FlatDesignView design={design} />
               )}
