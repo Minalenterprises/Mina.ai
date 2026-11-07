@@ -1,23 +1,28 @@
 import { useState, lazy, Suspense } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { ArrowUpRight, ArrowRight, ArrowDown, Check, Box, Layers3, MoveUpRight, Play, Plus, Minus, Sparkles, MousePointer2, MessageCircle, PencilLine, PackageCheck, Rotate3D, X } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { X, Box, Layers3, ArrowRight } from 'lucide-react'
 import { Header } from '../components/Header'
 import { Brand, MinalMark } from '../components/Brand'
 import { LoadingScreen } from '../components/LoadingScreen'
 import { PixelSky } from '../components/PixelSky'
 import { Composer } from '../components/Composer'
+import { PixelArrow, PixelBox, PixelChat, PixelCheck, PixelMinus, PixelPlus, PixelSpark } from '../components/PixelIcons'
 import { examples, newDesign, type Example } from '../lib/types'
 import { useStore } from '../lib/store'
 const ProductScene = lazy(() => import('../components/ProductScene'))
-const reveal = { initial: { opacity: 0, y: 28 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true, amount: 0.13 }, transition: { duration: 0.65 } }
+
+const ease = [0.22, 1, 0.36, 1] as const
+const reveal = { initial: { opacity: 0, y: 32 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true, amount: 0.2 }, transition: { duration: 0.8, ease } }
+const SWATCHES = ['#1463ff', '#0a0d14', '#b8c9ac', '#c9bade', '#e2a18b', '#f3e7d3']
+const MARQUEE = ['Gift boxes', 'Folding cartons', 'Tea canisters', 'Skincare', 'Candles', 'Coffee', 'Jewellery', 'Chocolate', 'Soap', 'Mailers']
 
 export function Home() {
   const navigate = useNavigate()
   const { saveDesign, openSupport } = useStore()
   const [idea, setIdea] = useState('')
   const [view, setView] = useState<'render' | '3d' | '2d'>('render')
-  const [filter, setFilter] = useState('All creations')
+  const [swatch, setSwatch] = useState(SWATCHES[0])
   const [faq, setFaq] = useState<number | null>(0)
   const [selected, setSelected] = useState<Example | null>(null)
   const demo = { ...newDesign(), name: 'a little better.', color: '#b8c9ac', brief: 'A sage green presentation box for a stainless steel spoon', stage: 'design' as const }
@@ -26,56 +31,132 @@ export function Home() {
     const design = { ...newDesign(example.brief), name: example.name, category: example.type, color: example.color, stage: 'plan' as const, chatStep: 5, dimensions: example.type === 'Canister' ? { length: 90, width: 90, height: 140 } : example.type === 'Carton' ? { length: 60, width: 45, height: 150 } : { length: 240, width: 90, height: 40 }, messages: [{ id: crypto.randomUUID(), role: 'assistant' as const, text: `Let’s make ${example.name} your own. I’ve put together an editable starting plan from this concept. Change any detail, then bring it into 3D.` }] }
     saveDesign(design); navigate(`/studio/${design.id}`)
   }
-  const filtered = filter === 'All creations' ? examples : examples.filter(item => item.label === filter.toUpperCase())
   const faqs = [
-    ['Do I need to know anything about design?', 'Not a thing. Start with an idea — even “I need a box for a spoon.” Minal helps you shape the brief, choose colors and materials, and create an editable plan. You bring the idea. We make the next steps feel simple.'],
-    ['Can I use my own colors and branding?', 'Absolutely. Upload a reference image to extract a color palette, choose a custom color, and add your own logo if you have one. If you don’t, your design stays beautifully logo-free.'],
-    ['What can I make with minal?', 'This interactive studio supports rigid presentation boxes, folding cartons, and cylindrical canisters. You can personalize the dimensions, color, material, finish, and typography, then explore the result in 2D and 3D.'],
-    ['How does ordering work?', 'Once you’re happy with the design, submit an order request with your quantity and delivery details. In this demo, requests and team messages are stored only in your browser, and no payment or manufacturing order is placed.'],
-    ['Are my projects saved?', 'Yes — your conversations, plans, designs, and order requests are saved locally in this browser. You can return to them in My projects. You can also download a plan and a 2D dieline to keep a copy.'],
+    ['Do I need to know anything about design?', 'Not a thing. Start with an idea, even “I need a box for a spoon.” minal shapes the brief, picks colours and materials, and builds an editable plan with you.'],
+    ['Can I use my own colours and branding?', 'Yes. Upload a reference image to pull a palette, pick any custom colour and add your logo. No logo? Your design stays beautifully clean.'],
+    ['What can I make with minal?', 'Rigid presentation boxes, folding cartons and cylindrical canisters today. Every dimension, colour, material, finish and typeface is yours to change, in 2D and 3D.'],
+    ['How does ordering work?', 'When you love it, send an order request with quantity and delivery details. In this demo nothing is charged and no manufacturing order is placed.'],
+    ['Are my projects saved?', 'Yes. Conversations, plans, designs and order requests are saved in this browser, and you can download the plan and a 2D dieline anytime.'],
   ]
-  return <div className="home-page">
+  const steps = [
+    { n: '01', icon: PixelChat, title: 'Say it in a sentence', body: 'Describe the product and the feeling. minal asks the few questions that matter.' },
+    { n: '02', icon: PixelSpark, title: 'Get a real plan', body: 'Size, structure, material, finish and type, laid out as a plan you can edit line by line.' },
+    { n: '03', icon: PixelBox, title: 'Hold it in 3D', body: 'Spin it, open it, unfold it. Export the dieline, then send it to production.' },
+  ]
+
+  return <div className="home-page hx">
     <Header />
     <main>
+      {/* ── Hero ───────────────────────────────────────────── */}
       <section className="sky-hero">
         <PixelSky />
         <div className="sky-hero-inner">
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .55 }} className="intro-pill"><span className="status-dot" /> AI packaging studio <ArrowUpRight size={13} /></motion.div>
-          <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .7, delay: .07, ease: [0.22, 1, 0.36, 1] }}>Your little idea,<br /><em>made real.</em></motion.h1>
-          <motion.p className="hero-description" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65, delay: .14 }}>Describe it in a sentence. minal plans it, designs it and builds it in 3D, ready for the real world.</motion.p>
-          <motion.div className="sky-hero-form" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65, delay: .21 }}>
+          <motion.a href="#showcase" className="hx-badge" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .6, ease }}><span className="hx-badge-tag">NEW</span><span>Live 3D with print-ready dielines</span><PixelArrow size={12} /></motion.a>
+          <motion.h1 initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .9, delay: .08, ease }}>Your little idea,<br /><em>made real.</em></motion.h1>
+          <motion.p className="hero-description" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .8, delay: .16, ease }}>Describe it in a sentence. minal plans it, designs it and builds it in 3D, ready for the real world.</motion.p>
+          <motion.div className="sky-hero-form" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .8, delay: .24, ease }}>
             <Composer value={idea} onChange={setIdea} onSubmit={start} />
-            <div className="idea-suggestions"><button onClick={() => setIdea('A box for a spoon')}>A spoon box</button><button onClick={() => setIdea('A minimal skincare carton')}>Skincare carton</button><button onClick={() => setIdea('A matcha tea canister')}>Tea canister</button></div>
+            <div className="idea-suggestions">{['A box for a silver spoon', 'A minimal skincare carton', 'A matcha tea canister'].map(s => <button key={s} onClick={() => setIdea(s)}>{s}</button>)}</div>
           </motion.div>
         </div>
       </section>
-      <section className="showcase page-width">
-        <div className="showcase-copy"><span className="eyebrow">SEE IT BEFORE IT EXISTS</span><h2>Render, spin, unfold.</h2><p>Every design comes with a photo-real render, a live 3D model and a print-ready dieline.</p><div className="hero-actions"><button className="button button-lime" onClick={start}>Start designing <ArrowUpRight size={18} /></button><a href="#how-it-works" className="watch-link"><span className="play-icon"><Play size={10} fill="currentColor" /></span> How it works</a></div></div>
-        <motion.div className="hero-visual-wrap" initial={{ opacity: 0, scale: .97 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: .8, delay: .1 }}>
-          <div className={`hero-visual ${view !== 'render' ? 'live-preview' : ''}`}>
-            <div className="preview-topline"><span><span className="status-dot" /> A LITTLE IDEA, BROUGHT TO LIFE</span><span className="made-badge"><MinalMark size={12} /> Made with minal</span></div>
-            {view === 'render' ? <img className="hero-product-image" src="/images/hero-packaging.webp" alt="Sage green A little better spoon packaging, designed with minal" fetchPriority="high" /> : view === '3d' ? <Suspense fallback={<div className="scene-loading"><LoadingScreen variant="inline" label="Loading your perspective" /></div>}><ProductScene design={demo} openBox autoRotate /></Suspense> : <div className="hero-flat"><div className="flat-lid">a little<br />better.<small>EVERYDAY ESSENTIALS</small></div><div className="flat-side">a little better.</div><span>TOP & SIDE ELEVATIONS · 240 × 90 × 40 MM</span></div>}
-            <span className="color-label"><span style={{ background: '#b9c9aa' }} /> Sage, with a little soul.</span>
-            <div className="preview-bottomline"><div className="view-toggle"><button className={view !== '2d' ? 'selected' : ''} onClick={() => setView(view === 'render' ? '3d' : 'render')}><Box size={13} /> 3D view</button><button className={view === '2d' ? 'selected' : ''} onClick={() => setView('2d')}><Layers3 size={13} /> 2D view</button></div><button className="rotate-hint" onClick={() => setView('3d')}><Rotate3D size={15} /> {view === '3d' ? 'Drag to explore' : 'A whole new perspective'}</button></div>
-          </div>
-        </motion.div>
-      </section>
-      <div className="possibility-strip page-width"><span>A LITTLE LESS COMPLICATED. A LOT MORE POSSIBLE.</span><div><MessageCircle size={16} /> Dream it.<i /><PencilLine size={16} /> Shape it.<i /><Box size={16} /> See it.<i /><PackageCheck size={16} /> Make it.</div><a href="#how-it-works" aria-label="Discover how minal works"><ArrowDown size={19} /></a></div>
-      <section className="how-section page-width" id="how-it-works">
-        <motion.div className="section-heading" {...reveal}><div><span className="eyebrow">FROM YOUR HEAD. INTO YOUR HANDS.</span><h2>A small chat.<br />A whole lot of possibility.</h2></div><p>No complicated tools. No blank-canvas panic.<br />Just you, your idea, and a little help from minal.</p></motion.div>
-        <div className="steps-grid">
-          <motion.article className="step-card" {...reveal}><div className="step-meta"><span>01 / THE CONVERSATION</span><MessageCircle size={20} /></div><div className="step-illustration conversation-illustration"><span className="tiny-ai-bubble"><MinalMark size={16} /> What are we making today?</span><span className="tiny-user-bubble">Something a little different.</span><div className="typing-bubble"><i /><i /><i /></div></div><h3>Tell us your what if.</h3><p>A big vision or a scribble on a napkin. We’ll ask the right questions to find your starting point.</p><Link to="/studio" className="step-link">Start a conversation <ArrowUpRight size={15} /></Link></motion.article>
-          <motion.article className="step-card" {...reveal} transition={{ duration: .65, delay: .1 }}><div className="step-meta"><span>02 / THE PLAN</span><PencilLine size={20} /></div><div className="step-illustration plan-illustration"><div className="mini-plan"><div><span>YOUR LITTLE MASTER PLAN</span><span className="mini-plan-check"><Check size={10} /></span></div><b>A little better.</b><div className="mini-line" /><div className="mini-line short" /><div className="mini-plan-bottom"><span>Matte finish</span><i /><i /><i /></div></div><span className="edit-cursor"><MousePointer2 size={18} fill="currentColor" /><span>Make it yours</span></span></div><h3>A plan that gets you.</h3><p>Your conversation becomes a thoughtful product plan. Tweak the details until it feels just right.</p><Link to="/studio?idea=A%20minimal%20sage%20green%20spoon%20box" className="step-link">Meet your product plan <ArrowUpRight size={15} /></Link></motion.article>
-          <motion.article className="step-card" {...reveal} transition={{ duration: .65, delay: .2 }}><div className="step-meta"><span>03 / THE REAL THING</span><Box size={20} /></div><div className="step-illustration product-illustration"><div className="mini-isometric"><div className="iso-top"><MinalMark size={23} /></div><div className="iso-front" /><div className="iso-side" /></div><span className="ready-pill"><span /> Ready for the real world</span></div><h3>Oh, look. It’s real.</h3><p>Spin it in 3D. See every little detail. And when you love it, take the next step to making it yours.</p><button onClick={() => openExample(examples[0])} className="step-link">Explore a design <ArrowUpRight size={15} /></button></motion.article>
+
+      {/* ── Marquee ────────────────────────────────────────── */}
+      <div className="hx-marquee" aria-hidden="true"><div className="hx-marquee-track">{[...MARQUEE, ...MARQUEE].map((m, i) => <span key={i}>{m}<i><PixelSpark size={10} /></i></span>)}</div></div>
+
+      {/* ── Bento showcase ─────────────────────────────────── */}
+      <section className="hx-section page-width" id="showcase">
+        <motion.header className="hx-head" {...reveal}><span className="hx-eyebrow"><PixelSpark size={10} /> See it before it exists</span><h2>One sentence in.<br /><em>Three ways to see it.</em></h2></motion.header>
+        <div className="hx-bento">
+          <motion.article className="hx-card hx-card-hero" {...reveal}>
+            <div className="hx-card-top"><span className="hx-pill"><span className="hx-dot" /> a little better.</span><div className="hx-seg">{(['render', '3d', '2d'] as const).map(v => <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{v === 'render' ? 'Render' : v === '3d' ? '3D' : 'Dieline'}</button>)}</div></div>
+            <div className="hx-stage">
+              <AnimatePresence mode="wait">
+                <motion.div key={view} className="hx-stage-inner" initial={{ opacity: 0, scale: .98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: .98 }} transition={{ duration: .35, ease }}>
+                  {view === 'render' ? <img src="/images/hero-packaging.webp" alt="Sage green spoon packaging designed with minal" fetchPriority="high" /> : view === '3d' ? <Suspense fallback={<LoadingScreen variant="inline" label="Loading 3D" />}><ProductScene design={demo} openBox autoRotate /></Suspense> : <Dieline />}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+            <div className="hx-card-foot"><span>240 × 90 × 40 mm · Rigid box · Soft-touch matte</span><Link to="/studio" className="hx-link">Make one <PixelArrow size={11} /></Link></div>
+          </motion.article>
+          <motion.article className="hx-card hx-card-color" {...reveal} transition={{ ...reveal.transition, delay: .08 }}>
+            <span className="hx-card-kicker">Any colour</span>
+            <div className="hx-color-box" style={{ background: swatch }}><MinalMark size={26} /></div>
+            <div className="hx-swatches">{SWATCHES.map(c => <button key={c} aria-label={`Colour ${c}`} className={c === swatch ? 'on' : ''} style={{ background: c }} onClick={() => setSwatch(c)} />)}</div>
+            <p>Pick a swatch, or pull a palette from a photo.</p>
+          </motion.article>
+          <motion.article className="hx-card hx-card-chat" {...reveal} transition={{ ...reveal.transition, delay: .14 }}>
+            <span className="hx-card-kicker">It asks, you answer</span>
+            <div className="hx-chat">
+              <div className="hx-bubble ai"><MinalMark size={12} /> What goes inside?</div>
+              <div className="hx-bubble me">A silver spoon, as a gift.</div>
+              <div className="hx-bubble ai"><MinalMark size={12} /> Rigid box, velvet insert, soft matte?</div>
+              <div className="hx-typing"><i /><i /><i /></div>
+            </div>
+          </motion.article>
+          <motion.article className="hx-card hx-card-stat" {...reveal} transition={{ ...reveal.transition, delay: .2 }}>
+            <span className="hx-card-kicker">From idea to 3D</span>
+            <b>~60<small>sec</small></b>
+            <p>No design tools, no blank canvas.</p>
+          </motion.article>
         </div>
       </section>
-      <section className="explore-section" id="explore"><div className="page-width"><motion.div className="section-heading" {...reveal}><div><span className="eyebrow">A FEW WHAT IFS, MADE REAL</span><h2>Little ideas. Lovely things.</h2></div><Link to="/studio" className="text-arrow-link">Your idea could be next <ArrowUpRight size={17} /></Link></motion.div><motion.div className="filter-row" {...reveal}>{['All creations', 'Lifestyle', 'Food & beverage', 'Beauty & care'].map(item => <button key={item} onClick={() => setFilter(item)} className={filter === item ? 'filter active' : 'filter'}>{item}</button>)}<span>IMAGINED HERE. MADE POSSIBLE.</span></motion.div><div className="examples-grid">{filtered.map((item, index) => <motion.button layout key={item.name} className="example-card" onClick={() => setSelected(item)} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: index * .1 }}><div className="example-image"><img src={item.image} alt={`${item.name} ${item.label.toLowerCase()} packaging design`} loading="lazy" /><span className="example-category">{item.label}</span><span className="example-open"><ArrowUpRight size={20} /></span></div><div className="example-caption"><div><h3>{item.name}</h3><p>{item.category}</p></div><span style={{ background: item.color }} /></div></motion.button>)}</div></div></section>
-      <section className="why-section page-width" id="why-minal"><motion.div className="why-art" {...reveal}><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="why-center"><MinalMark size={74} /></div><span className="orbit-tag tag-idea">Your wild idea <Sparkles size={16} /></span><span className="orbit-tag tag-you">A little more you.</span><span className="orbit-tag tag-reality"><Box size={17} /> A real possibility</span><span className="orbit-dot dot-one" /><span className="orbit-dot dot-two" /><span className="why-art-footnote">HUMAN IMAGINATION. A LITTLE AI MAGIC.</span></motion.div><motion.div className="why-copy" {...reveal}><span className="eyebrow">YOU'RE THE IDEA PERSON</span><h2>Less figuring it out.<br />More bringing it to life.</h2><p>Good ideas don’t need a design degree. Or a hundred open tabs. They need a little space to grow.</p><p>Minal connects the dots between what’s in your head and what’s possible — while keeping you in the creative seat.</p><ul><li><Check size={16} /> Your vision, not another template.</li><li><Check size={16} /> Every detail is yours to change.</li><li><Check size={16} /> A real preview, before a real commitment.</li></ul><Link to="/studio" className="button button-dark">Let's make something yours <ArrowUpRight size={17} /></Link></motion.div></section>
-      <section className="manifesto-section"><div className="page-width"><span className="eyebrow">A LITTLE REMINDER</span><motion.p initial={{ opacity: .15 }} whileInView={{ opacity: 1 }} transition={{ duration: 1 }} viewport={{ amount: .7, once: true }}>The best things start with<br />“what if.” <span>Yours could be next.</span></motion.p><MinalMark size={43} /></div></section>
-      <section className="faq-section page-width"><motion.div {...reveal}><span className="eyebrow">A FEW LITTLE ANSWERS</span><h2>Curious?<br />Good. So are we.</h2><p>Still have something on your mind?</p><button onClick={openSupport} className="text-arrow-link">Have a chat with us <ArrowUpRight size={17} /></button></motion.div><div className="faq-list">{faqs.map(([question, answer], index) => <div className={`faq-item ${faq === index ? 'expanded' : ''}`} key={question}><button onClick={() => setFaq(faq === index ? null : index)} aria-expanded={faq === index}>{question}{faq === index ? <Minus size={18} /> : <Plus size={18} />}</button>{faq === index && <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}>{answer}</motion.p>}</div>)}</div></section>
-      <section className="final-cta page-width"><div><span className="eyebrow">THAT IDEA YOU KEEP THINKING ABOUT?</span><h2>Let’s give it a little life.</h2><p>You don’t need to have it all figured out. Just start.</p><Link className="button button-dark" to="/studio">Hello minal, I have an idea <ArrowUpRight size={18} /></Link></div><div className="cta-star"><MinalMark size={190} /></div></section>
+
+      {/* ── How it works ───────────────────────────────────── */}
+      <section className="hx-section page-width" id="how-it-works">
+        <motion.header className="hx-head hx-head-split" {...reveal}><div><span className="hx-eyebrow"><PixelSpark size={10} /> How it works</span><h2>A small chat.<br /><em>A real product.</em></h2></div><p>No complicated tools and no blank-canvas panic. Just you, your idea and a little help.</p></motion.header>
+        <div className="hx-steps">{steps.map((s, i) => <motion.article key={s.n} className="hx-step" {...reveal} transition={{ ...reveal.transition, delay: i * .08 }}><div className="hx-step-top"><span className="hx-step-icon"><s.icon size={22} /></span><span className="hx-step-n">{s.n}</span></div><h3>{s.title}</h3><p>{s.body}</p></motion.article>)}</div>
+      </section>
+
+      {/* ── Gallery ────────────────────────────────────────── */}
+      <section className="hx-section page-width" id="explore">
+        <motion.header className="hx-head hx-head-split" {...reveal}><div><span className="hx-eyebrow"><PixelSpark size={10} /> Made with minal</span><h2>Little ideas.<br /><em>Lovely things.</em></h2></div><Link to="/studio" className="hx-link">Your idea could be next <PixelArrow size={11} /></Link></motion.header>
+        <div className="hx-gallery">{examples.map((item, i) => <motion.button key={item.name} className="hx-shot" onClick={() => setSelected(item)} {...reveal} transition={{ ...reveal.transition, delay: i * .08 }}><div className="hx-shot-img"><img src={item.image} alt={`${item.name} packaging`} loading="lazy" /><span className="hx-shot-tag">{item.label}</span><span className="hx-shot-open"><PixelArrow size={14} /></span></div><div className="hx-shot-cap"><div><h3>{item.name}</h3><p>{item.category}</p></div><i style={{ background: item.color }} /></div></motion.button>)}</div>
+      </section>
+
+      {/* ── Night band ─────────────────────────────────────── */}
+      <section className="hx-night">
+        <PixelSky skyline cell={18} />
+        <motion.div className="hx-night-inner" {...reveal}>
+          <span className="hx-eyebrow light"><PixelSpark size={10} /> Why minal</span>
+          <h2>The best things start<br />with <em>“what if.”</em></h2>
+          <ul>{['Your vision, never a template', 'Every detail stays editable', 'A real preview before a real commitment'].map(t => <li key={t}><PixelCheck size={14} /> {t}</li>)}</ul>
+          <Link to="/studio" className="hx-btn hx-btn-light">Start with your idea <PixelArrow size={12} /></Link>
+        </motion.div>
+      </section>
+
+      {/* ── FAQ ────────────────────────────────────────────── */}
+      <section className="hx-section page-width hx-faq">
+        <motion.header className="hx-head" {...reveal}><span className="hx-eyebrow"><PixelSpark size={10} /> Questions</span><h2>Curious?<br /><em>Good.</em></h2><button onClick={openSupport} className="hx-link">Ask us anything <PixelArrow size={11} /></button></motion.header>
+        <div className="hx-faq-list">{faqs.map(([q, a], i) => <div key={q} className={`hx-faq-item ${faq === i ? 'open' : ''}`}><button onClick={() => setFaq(faq === i ? null : i)} aria-expanded={faq === i}><span>{q}</span>{faq === i ? <PixelMinus size={12} /> : <PixelPlus size={12} />}</button><AnimatePresence initial={false}>{faq === i && <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: .3, ease }}><p>{a}</p></motion.div>}</AnimatePresence></div>)}</div>
+      </section>
+
+      {/* ── Final CTA ──────────────────────────────────────── */}
+      <section className="hx-cta page-width">
+        <motion.div className="hx-cta-card" {...reveal}>
+          <PixelSky skyline={false} cell={16} />
+          <div className="hx-cta-inner"><h2>That idea you keep<br /><em>thinking about?</em></h2><p>You don’t need it all figured out. Just start.</p><Link className="hx-btn" to="/studio">Hello minal, I have an idea <PixelArrow size={12} /></Link></div>
+        </motion.div>
+      </section>
     </main>
-    <footer className="site-footer page-width"><div className="footer-top"><div><Brand /><p>A little imagination. A world of possibility.</p></div><div className="footer-links"><a href="#how-it-works">How it works</a><a href="#explore">Made with minal</a><Link to="/projects">My projects</Link><button onClick={openSupport}>Say hello <MoveUpRight size={12} /></button></div></div><div className="footer-bottom"><span>(c) {new Date().getFullYear()} minal.ai. Made for the what-ifs.</span><span>Thoughtfully designed. Endlessly possible.</span><Link to="/admin">Admin workspace <ArrowUpRight size={12} /></Link></div></footer>
-    {selected && <div className="modal-backdrop" onClick={() => setSelected(null)}><motion.section className="example-modal" role="dialog" aria-modal="true" aria-label={selected.name} initial={{ opacity: 0, scale: .95 }} animate={{ opacity: 1, scale: 1 }} onClick={e => e.stopPropagation()}><button className="modal-close icon-button" aria-label="Close design preview" onClick={() => setSelected(null)}><X size={20} /></button><img src={selected.image} alt={selected.name} /><div className="example-modal-copy"><span className="eyebrow">A MINAL CONCEPT · {selected.label}</span><h2>{selected.name}</h2><p>{selected.brief}</p><div className="example-specs"><span><i style={{ background: selected.color }} /> Custom color</span><span><Box size={15} /> {selected.type}</span><span><Layers3 size={15} /> Editable plan</span></div><button className="button button-lime" onClick={() => openExample(selected)}>Make it your own <ArrowRight size={17} /></button><small>A starting point for your imagination. Every detail is editable.</small></div></motion.section></div>}
+
+    <footer className="hx-footer page-width">
+      <div className="hx-footer-top"><div><Brand /><p>A little imagination. A world of possibility.</p></div><nav><a href="#how-it-works">How it works</a><a href="#explore">Made with minal</a><Link to="/projects">My projects</Link><button onClick={openSupport}>Say hello</button></nav></div>
+      <div className="hx-wordmark" aria-hidden="true">minal<span>.</span>ai</div>
+      <div className="hx-footer-bottom"><span>© {new Date().getFullYear()} minal.ai</span><span>Made for the what-ifs.</span><Link to="/admin">Admin</Link></div>
+    </footer>
+
+    {selected && <div className="modal-backdrop" onClick={() => setSelected(null)}><motion.section className="example-modal" role="dialog" aria-modal="true" aria-label={selected.name} initial={{ opacity: 0, scale: .95 }} animate={{ opacity: 1, scale: 1 }} onClick={e => e.stopPropagation()}><button className="modal-close icon-button" aria-label="Close design preview" onClick={() => setSelected(null)}><X size={20} /></button><img src={selected.image} alt={selected.name} /><div className="example-modal-copy"><span className="eyebrow">A MINAL CONCEPT · {selected.label}</span><h2>{selected.name}</h2><p>{selected.brief}</p><div className="example-specs"><span><i style={{ background: selected.color }} /> Custom colour</span><span><Box size={15} /> {selected.type}</span><span><Layers3 size={15} /> Editable plan</span></div><button className="button button-lime" onClick={() => openExample(selected)}>Make it your own <ArrowRight size={17} /></button></div></motion.section></div>}
   </div>
+}
+
+/** Animated dieline: the flat net draws itself in. */
+function Dieline() {
+  const paths = ['M60 70h120v60H60z', 'M60 70V30h120v40', 'M60 130v40h120v-40', 'M60 70H20v60h40', 'M180 70h40v60h-40', 'M60 30l10-14h100l10 14']
+  return <svg className="hx-dieline" viewBox="0 0 240 190" fill="none">
+    {paths.map((d, i) => <motion.path key={i} d={d} stroke="currentColor" strokeWidth={1.2} initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: .9, delay: i * .15, ease }} />)}
+    <motion.path d="M60 70h120M60 130h120" stroke="var(--blue)" strokeWidth={1} strokeDasharray="3 3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }} />
+    <text x="120" y="104" textAnchor="middle" fontSize="9" fill="currentColor" fontFamily="Instrument Serif, serif" fontStyle="italic">a little better.</text>
+    <text x="120" y="184" textAnchor="middle" fontSize="6" fill="var(--ink-mute)" letterSpacing="1">CUT ── FOLD - - -</text>
+  </svg>
 }
