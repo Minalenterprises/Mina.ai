@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, lazy } from 'react'
+import { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -11,7 +11,6 @@ import {
   Box,
   FileText,
   Paperclip,
-  Sparkles,
   RotateCcw,
   Rotate3D,
   Layers3,
@@ -27,32 +26,40 @@ import {
   Code2,
   Play,
   Terminal,
-  X, Square, Undo2, Redo2, Type, Paintbrush
+  X, Square, Undo2, Redo2, Type, Paintbrush, WandSparkles,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { Header } from '../components/Header'
 import { MinalMark } from '../components/Brand'
+import { BlankProject } from '../components/BlankProject'
+import { BuildView, type BuildPhase, type Shot } from '../components/BuildView'
 import { RouteLoader } from '../components/LoadingScreen'
-import { SiriGlow, SiriOrb } from '../components/SiriGlow'
+import { SiriOrb } from '../components/SiriGlow'
 import { SceneStage } from '../components/SceneStage'
 import { PlanEditor, downloadPlan } from '../components/PlanEditor'
 import { OrderModal } from '../components/OrderModal'
 import { Dieline, FlatDesignView } from '../components/Dieline'
 import { useStore } from '../lib/store'
-import { newDesign, uid, templates, type Design, type Template, type ToolActivity, type PreviewSettings } from '../lib/types'
+import { newDesign, uid, type Design, type Template, type ToolActivity, type PreviewSettings } from '../lib/types'
 import { previewKey } from '../lib/design-tools'
-import { SurfaceEditor, ProductInfoEditor } from '../components/SurfaceEditor'
 import { getSurface, TEXTURES } from '../lib/textures'
 import { getTypography, printedText } from '../lib/typography'
 import { getProductInfo } from '../lib/product-info'
 import { DESIGN_TOOL_DECLARATIONS } from '../lib/design-tools'
 import { TypographyEditor } from '../components/TypographyEditor'
-import { ArtworkEditor } from '../components/ArtworkEditor'
 import { downloadFile, readImage, safeName } from '../lib/utils'
-import { isConfigured } from '../lib/ai-settings'
-import { chatWithGemini } from '../lib/gemini'
-import { exportToDxf } from '../lib/dxf-export'
+import { isConfigured, loadSettings, PROVIDERS } from '../lib/ai-settings'
+import { chatWithAI } from '../lib/gemini'
+import { changeSummary } from '../lib/ai/labels'
+import { useFrameThrottle } from '../lib/use-frame-throttle'
+import { watermarkedShot } from '../lib/screenshots'
 
 const ProductScene = lazy(() => import('../components/ProductScene'))
+const TemplateLibrary = lazy(() => import('../components/TemplateLibrary'))
+// Drawers load on first open: texture generators, print editor and image generation stay out of the Studio chunk.
+const SurfaceEditor = lazy(() => import('../components/SurfaceEditor').then(m => ({ default: m.SurfaceEditor })))
+const ProductInfoEditor = lazy(() => import('../components/SurfaceEditor').then(m => ({ default: m.ProductInfoEditor })))
+const ArtworkEditor = lazy(() => import('../components/ArtworkEditor').then(m => ({ default: m.ArtworkEditor })))
 
 const CODE_PRESETS = [
   {
@@ -222,8 +229,8 @@ function NewStudio() {
 
   useEffect(() => {
     saveDesign(design)
-    navigate(`/studio/${design.id}`, { replace: true })
-  }, [design, saveDesign, navigate])
+    navigate(`/studio/${design.id}${params.get('magic') === '1' && design.brief ? '?magic=1' : ''}`, { replace: true })
+  }, [design, saveDesign, navigate, params])
 
   return (
     <RouteLoader />
@@ -258,6 +265,14 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
   const [design, setDesign] = useState<Design>(initialDesign)
   const [input, setInput] = useState(initialDesign.chatStep === 0 ? initialDesign.brief : '')
   const [thinking, setThinking] = useState(false)
+  const [started, setStarted] = useState(false)
+  const [build, setBuild] = useState<'off' | BuildPhase>('off')
+  const [shots, setShots] = useState<Shot[]>([])
+  const [buildPrompt, setBuildPrompt] = useState('')
+  const [buildAgent, setBuildAgent] = useState(false)
+  const buildRef = useRef(false)
+  useEffect(() => { buildRef.current = build !== 'off' }, [build])
+  const sawThinking = useRef(false)
   const [uploading, setUploading] = useState(false)
   const [view, setView] = useState<'3d' | '2d'>('3d')
   const [openBox, setOpenBox] = useState(true)
@@ -269,11 +284,17 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
   const [showTemplates, setShowTemplates] = useState(false)
   const [showCode, setShowCode] = useState(false)
   const [codeDraft, setCodeDraft] = useState(design.customCode || '')
-  const [templateFilter, setTemplateFilter] = useState('All')
   const [downloadMenu, setDownloadMenu] = useState(false)
   const aiActive = isConfigured()
+  const providerName = aiActive ? PROVIDERS[loadSettings().provider].name : ''
   const [progress, setProgress] = useState('')
+  const [streamText, setStreamText] = useState('')
+  /** Drives the AI-cursor overlay: each completed tool call = one extra "click". */
+  const [toolPulse, setToolPulse] = useState(0)
   const [activeTools, setActiveTools] = useState<ToolActivity[]>([])
+  const [lightbox, setLightbox] = useState<{ label: string; image: string } | null>(null)
+  const [magicMode, setMagicMode] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [cameraView, setCameraView] = useState<PreviewSettings['camera']>('perspective')
   const [showType, setShowType] = useState(false)
   const [showSurface, setShowSurface] = useState(false)
@@ -282,6 +303,16 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
   const [undo, setUndo] = useState<Design[]>([])
   const [redo, setRedo] = useState<Design[]>([])
   const requestRef = useRef<AbortController | null>(null)
+  /** The running request, so a new message can cancel it and wait for it to settle. */
+  const inflightRef = useRef<Promise<void> | null>(null)
+  /** Design before the running request; a superseding request starts from it. */
+  const baselineRef = useRef<Design | null>(null)
+  const supersededRef = useRef(false)
+  const magicStartedRef = useRef(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Streaming text and live design edits arrive in bursts; apply at most once per frame.
+  const pushStreamText = useFrameThrottle(setStreamText)
+  const pushDesign = useFrameThrottle((next: Design) => setDesign(current => ({ ...next, messages: current.messages })))
   const previewRef = useRef<PreviewSettings>({ camera: cameraView, openBox, autoRotate })
 
   const endRef = useRef<HTMLDivElement>(null)
@@ -322,87 +353,173 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
     notify(direction === 'undo' ? 'Previous design restored' : 'Change restored')
   }
 
-  const send = async (text = input) => {
+  /** Waits until the live 3D canvas shows exactly this design, camera and lid state. */
+  const waitForCanvas = async (next: Design, signal: AbortSignal, relaxed = false) => {
+    pushDesign.flush()
+    setView('3d')
+    const key = previewKey(next)
+    const started = performance.now()
+    while (performance.now() - started < 12000) {
+      signal.throwIfAborted()
+      const canvas = sceneRef.current?.querySelector('canvas')
+      const preview = previewRef.current
+      // Relaxed mode (screenshots) also accepts a frame whose labels are still loading after a short grace period.
+      const grace = relaxed && performance.now() - started > 2500
+      const keyReady = canvas?.dataset.designKey === key || grace
+      const lidReady = canvas?.dataset.openBox === String(preview.openBox) || (grace && canvas?.dataset.openBox === undefined) || (relaxed && performance.now() - started > 6000) || (relaxed && performance.now() - started > 6000)
+      if (canvas && keyReady && lidReady && canvas.dataset.cameraView === preview.camera) {
+        if (canvas.dataset.labelError) throw new Error(canvas.dataset.labelError)
+        // Let one more frame land so the drawing buffer holds the settled image.
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        return canvas
+      }
+      await new Promise(resolve => setTimeout(resolve, 80))
+    }
+    throw new Error('The 3D preview did not become ready for inspection.')
+  }
+
+  /** Two watermarked screenshots of the finished design (front three-quarter and back), then the user's view is restored. */
+  const captureChatShots = async (next: Design, signal: AbortSignal) => {
+    const original = { ...previewRef.current }
+    const shots: { label: string; image: string }[] = []
+    setProgress('Capturing previews…')
+    try {
+      for (const [camera, label] of [['perspective', 'Front three-quarter'], ['back', 'Back']] as const) {
+        previewRef.current = { ...previewRef.current, camera, autoRotate: false }
+        setCameraView(camera); setAutoRotate(false)
+        const canvas = await waitForCanvas(next, signal, true)
+        shots.push({ label, image: watermarkedShot(canvas) })
+      }
+    } catch (error) {
+      console.debug('[minal-ai] preview capture skipped', error)
+    } finally {
+      previewRef.current = original
+      setCameraView(original.camera); setOpenBox(original.openBox); setAutoRotate(original.autoRotate)
+    }
+    return shots
+  }
+
+  const send = async (text = input, mode: 'chat' | 'magic' = 'chat') => {
     const value = text.trim()
-    if (!value || requestRef.current || uploading) return
+    if (!value || uploading) return
     if (!isConfigured()) { notify('Connect your AI key in Admin → Settings to use the design assistant.', 'info'); return }
-    const baseline = design
+    // A new message replaces the running request: cancel it, restore its starting design, then continue from there.
+    const superseding = !!requestRef.current
+    if (superseding) {
+      supersededRef.current = true
+      requestRef.current?.abort()
+      await inflightRef.current?.catch(() => undefined)
+      supersededRef.current = false
+    }
+    const baseline = superseding && baselineRef.current ? baselineRef.current : design
+    baselineRef.current = baseline
     const initialPreview = { camera: cameraView, openBox, autoRotate }
     previewRef.current = initialPreview
     const controller = new AbortController()
     requestRef.current = controller
-    const currentMessages = [...design.messages, { id: uid(), role: 'user' as const, text: value }]
-    setDesign({ ...design, messages: currentMessages })
+    const userMessage = { id: uid(), role: 'user' as const, text: value, ...(mode === 'magic' ? { magic: true } : {}) }
+    const currentMessages: Design['messages'] = [...design.messages, userMessage]
+    setDesign(current => ({ ...(superseding ? { ...baseline, messages: current.messages } : current), messages: [...current.messages, userMessage] }))
     setInput('')
+    setMagicMode(false)
     setThinking(true)
+    setProgress(mode === 'magic' ? 'Reading your idea…' : 'Thinking…')
+    setStreamText('')
+    setToolPulse(0)
     setActiveTools([])
     setShowArtwork(false); setShowSpecs(false); setShowType(false); setShowSurface(false); setShowTemplates(false); setShowCode(false)
-    try {
-      const history = currentMessages.filter(message => !message.error).map(message => ({ role: (message.role === 'assistant' ? 'model' : 'user') as 'user' | 'model', text: message.text, image: message.image }))
-      const result = await chatWithGemini(history, baseline, {
-        signal: controller.signal, preview: initialPreview, onProgress: setProgress,
-        onTool: activity => setActiveTools(tools => [...tools, activity]),
-        onDesign: next => setDesign(current => ({ ...next, messages: current.messages })),
-        onPreview: next => { previewRef.current = next; setCameraView(next.camera); setOpenBox(next.openBox); setAutoRotate(next.autoRotate) },
-        capturePreview: async next => {
-          setView('3d')
-          const key = previewKey(next)
-          const started = performance.now()
-          while (performance.now() - started < 12000) {
-            controller.signal.throwIfAborted()
-            const canvas = sceneRef.current?.querySelector('canvas')
-            const preview = previewRef.current
-            if (canvas?.dataset.designKey === key && canvas.dataset.cameraView === preview.camera && canvas.dataset.openBox === String(preview.openBox)) {
-              if (canvas.dataset.labelError) throw new Error(canvas.dataset.labelError)
-              // Keep vision payload modest while retaining readable printed text.
-              const capture = document.createElement('canvas')
-              const scale = Math.min(1, 1400 / canvas.width)
-              capture.width = canvas.width * scale; capture.height = canvas.height * scale
-              capture.getContext('2d')!.drawImage(canvas, 0, 0, capture.width, capture.height)
-              return capture.toDataURL('image/png')
-            }
-            await new Promise(resolve => setTimeout(resolve, 80))
+    const run = (async () => {
+      try {
+        const history = currentMessages.filter(message => !message.error).map(message => ({ role: (message.role === 'assistant' ? 'model' : 'user') as 'user' | 'model', text: message.text, image: message.image }))
+        const result = await chatWithAI(history, baseline, {
+          signal: controller.signal, preview: initialPreview, mode,
+          onProgress: setProgress,
+          onTool: activity => { setActiveTools(tools => [...tools, activity]); if (activity.status === 'complete') setToolPulse(count => count + 1) },
+          onText: pushStreamText.push,
+          onDesign: pushDesign.push,
+          onPreview: next => { previewRef.current = next; setCameraView(next.camera); setOpenBox(next.openBox); setAutoRotate(next.autoRotate) },
+          capturePreview: async next => {
+            const canvas = await waitForCanvas(next, controller.signal)
+            // Keep vision payload modest while retaining readable printed text.
+            const capture = document.createElement('canvas')
+            const scale = Math.min(1, 1400 / canvas.width)
+            capture.width = canvas.width * scale; capture.height = canvas.height * scale
+            capture.getContext('2d')!.drawImage(canvas, 0, 0, capture.width, capture.height)
+            return capture.toDataURL('image/png')
           }
-          throw new Error('The 3D preview did not become ready for inspection.')
+        })
+        pushDesign.cancel(); pushStreamText.cancel()
+        if (result.tools.some(tool => tool.status === 'complete' && tool.fields?.length && tool.name !== 'set_preview')) {
+          setUndo(history => [...history.slice(-19), baseline]); setRedo([])
         }
-      })
-      if (result.tools.some(tool => tool.status === 'complete' && tool.fields?.length && tool.name !== 'set_preview')) {
-        setUndo(history => [...history.slice(-19), baseline]); setRedo([])
+        const summary = changeSummary(result.tools, mode === 'magic' ? 'Built' : 'Edited')
+        const replyId = uid()
+        setDesign(current => ({ ...result.design, chatStep: 5, messages: [...current.messages, { id: replyId, role: 'assistant', text: result.text, tools: result.tools, ...(summary ? { summary } : {}) }], updatedAt: new Date().toISOString() }))
+        // From here the edits are final: a superseding message starts from this design, not the old baseline.
+        baselineRef.current = result.design
+        if (summary && !buildRef.current) {
+          const shots = await captureChatShots(result.design, controller.signal)
+          if (shots.length) setDesign(current => ({
+            ...current,
+            // Screenshots are kept on the two latest replies only, to keep browser storage small.
+            messages: current.messages.map(message => message.id === replyId ? { ...message, shots } : message).map((message, index, all) => message.shots && all.slice(index + 1).filter(later => later.shots).length >= 2 ? { ...message, shots: undefined } : message),
+          }))
+        }
+      } catch (error) {
+        pushDesign.cancel(); pushStreamText.cancel()
+        if (supersededRef.current && controller.signal.aborted) {
+          // Replaced by a newer message: quietly drop this request's partial edits.
+          supersededRef.current = false
+          setDesign(current => ({ ...baseline, messages: current.messages }))
+          return
+        }
+        console.debug('[minal-ai] request failed', error)
+        const message = controller.signal.aborted ? 'Stopped. Your previous design has been restored.' : `${error instanceof Error ? error.message : 'AI connection failed.'} Your previous design has been restored.`
+        setDesign(current => ({ ...baseline, messages: [...current.messages, { id: uid(), role: 'assistant', text: message, error: true }] }))
+        setCameraView(initialPreview.camera); setOpenBox(initialPreview.openBox); setAutoRotate(initialPreview.autoRotate)
+        notify(message, 'info')
+      } finally {
+        if (requestRef.current === controller) {
+          requestRef.current = null
+          inflightRef.current = null
+          setThinking(false)
+          setStreamText('')
+          setProgress('')
+        }
       }
-      setDesign(current => ({ ...result.design, chatStep: 5, messages: [...current.messages, { id: uid(), role: 'assistant', text: result.text, tools: result.tools }], updatedAt: new Date().toISOString() }))
-    } catch (error) {
-      const message = controller.signal.aborted ? 'Stopped. Your previous design has been restored.' : `${error instanceof Error ? error.message : 'AI connection failed.'} Your previous design has been restored.`
-      setDesign(current => ({ ...baseline, messages: [...current.messages, { id: uid(), role: 'assistant', text: message, error: true }] }))
-      setCameraView(initialPreview.camera); setOpenBox(initialPreview.openBox); setAutoRotate(initialPreview.autoRotate)
-      notify(message, 'info')
-    } finally {
-      requestRef.current = null
-      setThinking(false)
-    }
+    })()
+    inflightRef.current = run
+    await run
   }
 
-  const applyTemplate = (t: Template) => {
-    setCodeDraft(t.customCode || '')
-    patch({
-      name: design.name === 'Untitled idea' ? t.name : design.name,
-      category: t.category,
-      structure: t.structure ?? 'standard',
-      color: t.color,
-      innerColor: t.innerColor,
-      accentColor: t.accentColor,
-      modelParts: t.modelParts || [],
-      ...(!design.typography ? { typography: t.typography } : {}),
-      material: t.material,
-      finish: t.finish,
-      dimensions: { ...t.dimensions },
-      openTop: t.openTop ?? false,
-      hasHandles: t.hasHandles ?? false,
-      customCode: t.customCode,
-      brief: design.brief || t.brief,
-      notes: t.notes
-    })
+  const magicBuild = (sentence = input) => {
+    if (!sentence.trim()) { setMagicMode(true); textareaRef.current?.focus(); return }
+    void send(sentence, 'magic')
+  }
+
+  // Magic Build started from Home (?magic=1) runs once the studio has opened.
+  useEffect(() => {
+    if (searchParams.get('magic') !== '1' || magicStartedRef.current) return
+    const timer = setTimeout(() => {
+      magicStartedRef.current = true
+      setSearchParams({}, { replace: true })
+      const brief = design.brief.trim()
+      if (!brief) return
+      if (!isConfigured()) { setMagicMode(true); notify('Connect your AI key in Admin → Settings to use Magic Build.', 'info'); return }
+      setStarted(true); startBuild(brief, true)
+    }, 0)
+    return () => clearTimeout(timer)
+    // Runs only when the magic flag appears; `send` reads the latest state itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  const applyLibrary = (updates: Partial<Design>, label: string, t?: Template) => {
+    if (t) {
+      setCodeDraft(t.customCode || '')
+      patch({ ...updates, name: /^untitled (idea|project)$/i.test(design.name) ? t.name : design.name, customCode: t.customCode, brief: design.brief || t.brief })
+    } else patch(updates)
     setShowTemplates(false)
-    notify(`Loaded ${t.name} template`)
+    notify(label)
   }
 
   const applyPresetCode = (preset: typeof CODE_PRESETS[0]) => {
@@ -446,7 +563,11 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
     }
   }
 
+  // The hidden export dieline is mounted only while an export runs, so normal editing never pays for
+  // re-rendering every printed panel to PNG in the background.
+  const [exportMount, setExportMount] = useState(false)
   const flatSvg = async () => {
+    setExportMount(true)
     const deadline = Date.now() + 15000
     const key = JSON.stringify({ ...design, messages: undefined, updatedAt: undefined })
     while (Date.now() < deadline) {
@@ -454,41 +575,64 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
       if (svg?.dataset.ready === 'true' && svg.dataset.designKey === key) {
         const copy = svg.cloneNode(true) as SVGElement
         copy.removeAttribute('class'); copy.removeAttribute('data-ready'); copy.removeAttribute('data-design-key')
-        return new XMLSerializer().serializeToString(copy)
+        return copy
       }
       await new Promise(resolve => setTimeout(resolve, 80))
     }
     throw new Error('Artwork is still loading or the design changed. Try exporting again.')
   }
+  const serialize = (svg: SVGElement) => new XMLSerializer().serializeToString(svg)
+  /** Rasterises the on-screen sheet at a print resolution (dpi), optionally without non-printing groups. */
+  const rasterizeFlat = async (dpi: number, maxSide: number, hide: string[] = []) => {
+    const svg = await flatSvg()
+    for (const id of hide) svg.querySelector(`#${id}`)?.remove()
+    const [,, w, h] = svg.getAttribute('viewBox')!.split(' ').map(Number)
+    const url = URL.createObjectURL(new Blob([serialize(svg)], { type: 'image/svg+xml' }))
+    try {
+      const image = new Image()
+      await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('Could not render the flat artwork.')); image.src = url })
+      const scale = Math.min(dpi / 25.4, maxSide / Math.max(w, h))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale)
+      const ctx = canvas.getContext('2d')!
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
+      return { canvas, dpi: Math.round(scale * 25.4) }
+    } finally { URL.revokeObjectURL(url) }
+  }
+  const editableSvg = async () => {
+    const { buildEditableSvg } = await import('../lib/vector-export')
+    return buildEditableSvg(design)
+  }
 
   const exportCdr = async () => {
     setDownloadMenu(false)
-    notify('Generating native CorelDRAW (.cdr) dieline...')
+    notify('Building the editable CorelDRAW artwork…')
+    let result: Awaited<ReturnType<typeof editableSvg>> | undefined
     try {
-      const res = await fetch('/api/generate-cdr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ design, svg: await flatSvg() })
-      })
+      result = await editableSvg()
+      const res = await fetch('/api/generate-cdr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ design: { name: design.name }, svg: result.svg }) })
       if (res.ok) {
-        const blob = await res.blob()
-        downloadFile(blob, `${safeName(design.name)}-dieline.cdr`, 'application/x-coreldraw')
-        notify('Native CorelDRAW (.cdr) dieline downloaded')
+        downloadFile(await res.blob(), `${safeName(design.name)}-editable.cdr`, 'application/x-coreldraw')
+        notify('Native CorelDRAW (.cdr) downloaded: live text, named layers and vector motifs.')
         return
       }
       const error = await res.json().catch(() => ({}))
-      throw new Error(error.error || `CorelDRAW export failed (HTTP ${res.status})`)
+      throw new Error(error.error || `CorelDRAW conversion unavailable (HTTP ${res.status}).`)
     } catch (error) {
-      notify(`${error instanceof Error ? error.message : 'CorelDRAW export failed.'} SVG includes the full artwork and can also be opened in CorelDRAW.`, 'info')
-    }
+      if (!result) { notify(error instanceof Error ? error.message : 'CorelDRAW export failed.', 'info'); return }
+      const { buildCorelPackage } = await import('../lib/cdr-export')
+      downloadFile(buildCorelPackage(design, result), `${safeName(design.name)}-coreldraw-package.zip`, 'application/zip')
+      notify(`${error instanceof Error ? error.message : 'Native .cdr conversion is unavailable here.'} Downloaded the CorelDRAW package instead: an editable layered SVG (live text, vector motifs) plus CMYK palette that CorelDRAW opens directly.`, 'info')
+    } finally { setExportMount(false) }
   }
 
-  const exportDxf = () => {
+  const exportDxf = async () => {
     try {
-      const dxfBlob = exportToDxf(design)
-      downloadFile(dxfBlob, `${safeName(design.name)}-dieline.dxf`, 'application/dxf')
+      const { exportToDxf } = await import('../lib/dxf-export')
+      downloadFile(exportToDxf(design), `${safeName(design.name)}-dieline.dxf`, 'application/dxf')
       setDownloadMenu(false)
-      notify('Dimensioned CAD geometry downloaded. Use SVG or CDR for printed artwork.')
+      notify('Dimensioned CAD geometry downloaded (cut, crease, perforation, dimensions).')
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Could not generate .dxf file', 'info')
     }
@@ -497,28 +641,36 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
   const exportSvg = async () => {
     setDownloadMenu(false)
     try {
-      downloadFile(await flatSvg(), `${safeName(design.name)}-full-design.svg`, 'image/svg+xml')
-      notify('Full 2D artwork and dimensions downloaded at 1:1 millimeter scale.')
+      const result = await editableSvg()
+      downloadFile(result.svg, `${safeName(design.name)}-editable.svg`, 'image/svg+xml')
+      notify(`Editable SVG downloaded: ${result.stats.texts} live text objects, ${result.stats.motifs} vector motifs, ${result.stats.layers.length} named layers at 1:1 mm.`)
     } catch (error) { notify(error instanceof Error ? error.message : 'SVG export failed.', 'info') }
   }
 
   const exportFlatPng = async () => {
     setDownloadMenu(false)
-    let url = ''
     try {
-      const source = await flatSvg(), svg = svgRef.current!.querySelector('svg')!
-      const [,, w, h] = svg.getAttribute('viewBox')!.split(' ').map(Number)
-      url = URL.createObjectURL(new Blob([source], { type: 'image/svg+xml' }))
-      const image = new Image()
-      await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('Could not render the flat artwork.')); image.src = url })
-      const canvas = document.createElement('canvas'), scale = Math.min(8, 4000 / Math.max(w, h))
-      canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale)
-      canvas.getContext('2d')!.drawImage(image, 0, 0, canvas.width, canvas.height)
+      const { canvas, dpi } = await rasterizeFlat(300, 8000)
       const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('PNG export failed.')), 'image/png'))
-      downloadFile(blob, `${safeName(design.name)}-full-design.png`, 'image/png')
-      notify('Full 2D design image downloaded.')
+      downloadFile(blob, `${safeName(design.name)}-full-design-${dpi}dpi.png`, 'image/png')
+      notify(`Full 2D design image downloaded at ${dpi} dpi.`)
     } catch (error) { notify(error instanceof Error ? error.message : 'PNG export failed.', 'info') }
-    finally { if (url) URL.revokeObjectURL(url) }
+    finally { setExportMount(false) }
+  }
+
+  const exportPdf = async () => {
+    setDownloadMenu(false)
+    notify('Rendering the 300 dpi print proof…')
+    try {
+      // Artwork (incl. bleed) is raster; die lines, marks and dimensions are re-drawn as CMYK vectors on PDF layers.
+      const { canvas } = await rasterizeFlat(300, 9000, ['Dimensions', 'Marks', 'SafeZone', 'DieCut', 'Crease', 'Perforation', 'Glue'])
+      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('PDF render failed.')), 'image/jpeg', .92))
+      const { exportPrintPdf } = await import('../lib/pdf-export')
+      const pdf = await exportPrintPdf(design, new Uint8Array(await blob.arrayBuffer()), { width: canvas.width, height: canvas.height })
+      downloadFile(pdf, `${safeName(design.name)}-print-proof.pdf`, 'application/pdf')
+      notify('Print-proof PDF downloaded: 300 dpi artwork with vector cut, crease and marks on separate layers.')
+    } catch (error) { notify(error instanceof Error ? error.message : 'PDF export failed.', 'info') }
+    finally { setExportMount(false) }
   }
 
   const exportPng = () => {
@@ -535,130 +687,145 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
     notify('Your 3D preview is downloaded.')
   }
 
-  // Drives the AI-cursor overlay: each completed tool call = one extra "click".
-  const completedTools = activeTools.filter(tool => tool.status === 'complete').length
-  const latestTool = activeTools.at(-1)?.summary
 
-  const templateCategories = ['All', 'Bags & Retail', 'Boxes', 'Specialty']
-  const filteredTemplates =
-    templateFilter === 'All'
-      ? templates
-      : templates.filter(t => (t.tag || 'Boxes').toLowerCase().includes(templateFilter.toLowerCase()))
+  const startBuild = (text: string, agent = false) => {
+    setBuildPrompt(text); setBuildAgent(agent); setShots([]); setView('3d'); setBuild('building'); buildRef.current = true; sawThinking.current = false
+    void send(text, agent ? 'magic' : 'chat')
+  }
+  const captureShots = async (): Promise<Shot[]> => {
+    const views: [PreviewSettings['camera'], string][] = [['perspective', 'Hero'], ['front', 'Front'], ['top', 'Top'], ['back', 'Back']]
+    const out: Shot[] = []
+    for (const [v, label] of views) {
+      setCameraView(v)
+      const t0 = performance.now()
+      while (performance.now() - t0 < 5000) {
+        const c = sceneRef.current?.querySelector('canvas')
+        if (c?.dataset.cameraView === v && c.dataset.designKey) break
+        await new Promise(r => setTimeout(r, 80))
+      }
+      await new Promise(r => setTimeout(r, 700))
+      const c = sceneRef.current?.querySelector('canvas')
+      if (!c || !c.width) continue
+      const cap = document.createElement('canvas'); const k = Math.min(1, 1600 / c.width)
+      cap.width = c.width * k; cap.height = c.height * k
+      const cx = cap.getContext('2d')!
+      cx.drawImage(c, 0, 0, cap.width, cap.height)
+      // crop to the product (canvas is transparent around it), with breathing room
+      const { data, width: W, height: H } = cx.getImageData(0, 0, cap.width, cap.height)
+      let x0 = W, y0 = H, x1 = 0, y1 = 0
+      const bg = [data[0], data[1], data[2]], bgA = data[3]
+      for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) { const i = (y * W + x) * 4; const d = Math.abs(data[i] - bg[0]) + Math.abs(data[i + 1] - bg[1]) + Math.abs(data[i + 2] - bg[2]); if (data[i + 3] < 160 || (bgA > 200 && d < 30)) continue; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y }
+      let src = cap.toDataURL('image/png')
+      if (x1 > x0 && y1 > y0) {
+        const pad = Math.round(Math.max(x1 - x0, y1 - y0) * .16)
+        x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W, x1 + pad); y1 = Math.min(H, y1 + pad)
+        const crop = document.createElement('canvas'); crop.width = x1 - x0; crop.height = y1 - y0
+        crop.getContext('2d')!.drawImage(cap, x0, y0, crop.width, crop.height, 0, 0, crop.width, crop.height)
+        src = crop.toDataURL('image/png')
+      }
+      out.push({ view: v, label, src })
+    }
+    setCameraView('perspective')
+    return out
+  }
+  useEffect(() => {
+    if (build !== 'building') return
+    if (thinking) { sawThinking.current = true; return }
+    if (!sawThinking.current) return
+    sawThinking.current = false
+    const last = design.messages[design.messages.length - 1]
+    if (last?.error) { setBuild('error'); return }
+    // Fallback naming: if the AI left the project untitled, name it from the prompt.
+    if (/^untitled (idea|project)$/i.test(design.name.trim()) && buildPrompt.trim()) {
+      const words: string[] = buildPrompt.replace(/^(an?|the|make|create|design|build)\s+/i, '').replace(/[^\p{L}\p{N}\s&'-]/gu, '').split(/\s+/).filter(Boolean)
+      const stop = words.findIndex((w, i) => i > 0 && /^(for|with|in|of|that|to|and|from)$/i.test(w)); if (stop > 0) words.length = stop; words.length = Math.min(words.length, 4)
+      if (words.length) patch({ name: words.map(w => w[0].toUpperCase() + w.slice(1)).join(' ') })
+    }
+    setBuild('shooting')
+    void captureShots().then(list => { setShots(list); setBuild(list.length ? 'gallery' : 'off') })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thinking, build])
+  const lastError = [...design.messages].reverse().find(m => m.role === 'assistant')?.text
+
+  const isBlank = !started && !thinking && !design.messages.some(m => m.role === 'user')
+  if (isBlank) return (
+    <BlankProject
+      name={design.name === 'Untitled idea' ? 'Untitled project' : design.name}
+      onRename={name => patch({ name })}
+      value={input}
+      onChange={setInput}
+      onSkip={() => setStarted(true)}
+      onSubmit={(text, agent) => { setStarted(true); if (!aiActive) { void send(text); return } startBuild(text, agent) }}
+    />
+  )
 
   return (
-    <div className="workspace-page realtime-studio">
+    <div className={`workspace-page realtime-studio sx ${thinking ? 'sx-thinking' : ''} ${build !== 'off' ? 'sx-under' : 'sx-enter'}`}>
+      <AnimatePresence>{build !== 'off' && (
+        <BuildView key="bv" phase={build} name={design.name === 'Untitled idea' ? 'Untitled project' : design.name} prompt={buildPrompt} progress={progress} tools={activeTools} shots={shots}
+          error={lastError} sceneRef={sceneRef} value={input} onChange={setInput}
+          onSend={text => startBuild(text)} onStop={() => requestRef.current?.abort()} onPreview={() => setBuild('off')} onRetry={() => startBuild(buildPrompt, buildAgent)} />
+      )}</AnimatePresence>
       <Header workspace />
 
-      {/* Top bar with Breadcrumbs, Live Status, and Fast Action Bar */}
-      <div className="studio-topbar">
+      {/* Slim top bar */}
+      <div className="studio-topbar sx-bar">
         <div className="project-breadcrumb">
-          <Link to="/projects" aria-label="Back to projects">
-            <ArrowLeft size={17} />
-          </Link>
-          <span className="breadcrumb-divider" />
+          <Link to="/projects" aria-label="Back to projects" className="sx-back"><ArrowLeft size={16} /></Link>
           <span className="project-title-live">{design.name}</span>
-          <span className="project-status">{design.status}</span>
+          <span className="sx-status">{design.status}</span>
         </div>
-
-        <div className="studio-quick-tools" inert={thinking}>
-          <button className="button button-sm button-outline" aria-label="Undo design change" disabled={!undo.length} onClick={() => restore('undo')}><Undo2 size={15} /></button>
-          <button className="button button-sm button-outline" aria-label="Redo design change" disabled={!redo.length} onClick={() => restore('redo')}><Redo2 size={15} /></button>
-          <button className="button button-sm button-outline" onClick={() => { setShowArtwork(false); setShowType(!showType); setShowSurface(false); setShowSpecs(false); setShowCode(false) }}><Type size={15} /> Typography</button>
-          <button className="button button-sm button-outline" onClick={() => { setShowArtwork(false); setShowSurface(!showSurface); setShowType(false); setShowSpecs(false); setShowCode(false) }}><Paintbrush size={15} /> Textures & info</button>
-          <button className="button button-sm button-outline" onClick={() => { setShowArtwork(!showArtwork); setShowSurface(false); setShowType(false); setShowSpecs(false); setShowCode(false) }}><Paintbrush size={15} /> Print designs</button>
-          {/* Templates Button */}
-          <button
-            className={`button button-sm ${showTemplates ? 'button-dark' : 'button-outline'}`}
-            onClick={() => {
-              setShowArtwork(false)
-              setShowType(false)
-              setShowSurface(false)
-              setShowTemplates(!showTemplates)
-              setShowSpecs(false)
-              setShowCode(false)
-            }}
-          >
-            <ShoppingBag size={14} /> Templates ({templates.length})
-          </button>
-
-          {/* 3D Code Inspector */}
-          <button
-            className={`button button-sm ${showCode ? 'button-dark' : 'button-outline'}`}
-            onClick={() => {
-              setShowArtwork(false)
-              setShowType(false)
-              setShowSurface(false)
-              setShowCode(!showCode)
-              setShowSpecs(false)
-              setShowTemplates(false)
-            }}
-            title="Inspect or write custom Three.js 3D code"
-          >
-            <Code2 size={14} /> 3D Code {design.customCode ? '(Custom)' : ''}
-          </button>
-
-          {/* Quick Specs / Plan Drawer Toggle */}
-          <button
-            className={`button button-sm ${showSpecs ? 'button-dark' : 'button-outline'}`}
-            onClick={() => {
-              setShowArtwork(false)
-              setShowType(false)
-              setShowSurface(false)
-              setShowSpecs(!showSpecs)
-              setShowTemplates(false)
-              setShowCode(false)
-            }}
-          >
-            <Sliders size={14} /> {showSpecs ? 'Hide Specs' : 'Edit Specs'}
-          </button>
-
-          {/* 3D / 2D View Mode Switcher */}
-          <div className="view-toggle">
-            <button className={view === '3d' ? 'selected' : ''} onClick={() => setView('3d')}>
-              <Box size={14} /> 3D View
-            </button>
-            <button className={view === '2d' ? 'selected' : ''} onClick={() => setView('2d')}>
-              <Layers3 size={14} /> 2D Dieline
-            </button>
-          </div>
+        <div className="sx-seg" role="tablist" aria-label="Preview mode">
+          <span className="sx-seg-thumb" style={{ transform: `translateX(${view === '3d' ? 0 : 100}%)` }} />
+          <button role="tab" aria-selected={view === '3d'} className={view === '3d' ? 'on' : ''} onClick={() => setView('3d')}><Box size={14} /> 3D</button>
+          <button role="tab" aria-selected={view === '2d'} className={view === '2d' ? 'on' : ''} onClick={() => setView('2d')}><Layers3 size={14} /> Dieline</button>
         </div>
-
-        <span className={`saved-state ${!storageAvailable ? 'storage-warning' : ''}`}>
-          <span className="status-dot" />
-          {storageAvailable ? 'Live 3D sync' : 'Storage full'}
-        </span>
+        <div className="sx-bar-right">
+          <button className="sx-icon" aria-label="Undo design change" title="Undo" disabled={!undo.length || thinking} onClick={() => restore('undo')}><Undo2 size={15} /></button>
+          <button className="sx-icon" aria-label="Redo design change" title="Redo" disabled={!redo.length || thinking} onClick={() => restore('redo')}><Redo2 size={15} /></button>
+          <span className={`sx-sync ${!storageAvailable ? 'warn' : ''} ${thinking ? 'busy' : ''}`} title={storageAvailable ? 'Every change saves instantly' : 'Browser storage is full'}><i />{thinking ? 'Generating' : storageAvailable ? 'Saved' : 'Storage full'}</span>
+        </div>
       </div>
+
+      {/* Floating tool dock */}
+      <nav className="sx-dock" inert={thinking} aria-label="Design tools">
+        {([
+          ['Type', Type, showType, () => { setShowArtwork(false); setShowType(!showType); setShowSurface(false); setShowSpecs(false); setShowCode(false); setShowTemplates(false) }],
+          ['Material', Paintbrush, showSurface, () => { setShowArtwork(false); setShowSurface(!showSurface); setShowType(false); setShowSpecs(false); setShowCode(false); setShowTemplates(false) }],
+          ['Artwork', ImageIcon, showArtwork, () => { setShowArtwork(!showArtwork); setShowSurface(false); setShowType(false); setShowSpecs(false); setShowCode(false); setShowTemplates(false) }],
+          ['Templates', ShoppingBag, showTemplates, () => { setShowArtwork(false); setShowType(false); setShowSurface(false); setShowTemplates(!showTemplates); setShowSpecs(false); setShowCode(false) }],
+          ['Specs', Sliders, showSpecs, () => { setShowArtwork(false); setShowType(false); setShowSurface(false); setShowSpecs(!showSpecs); setShowTemplates(false); setShowCode(false) }],
+          ['Code', Code2, showCode, () => { setShowArtwork(false); setShowType(false); setShowSurface(false); setShowCode(!showCode); setShowSpecs(false); setShowTemplates(false) }],
+        ] as const).map(([label, Icon, on, act]) => <button key={label} className={on ? 'on' : ''} onClick={act} aria-pressed={on}><Icon size={17} strokeWidth={1.7} /><span>{label}</span></button>)}
+      </nav>
 
       <div className={`studio-layout ${!showChat ? 'chat-collapsed' : ''}`}>
         {/* Left Side: Real-time AI Chat Panel */}
         {showChat && (
           <aside className="studio-chat">
-            <div className="studio-chat-header">
-              <span className={`assistant-avatar ${thinking ? 'is-thinking' : ''}`}>
-                <SiriOrb active={thinking} size={42} />
-                <MinalMark size={20} />
-              </span>
-              <div>
-                <h2>AI Design Partner</h2>
-                <span>
-                  <span className="status-dot" />{' '}
-                  {thinking ? 'Working on your design' : aiActive ? `Connected · ${DESIGN_TOOL_DECLARATIONS.length} design tools` : 'AI connection needed'}
-                </span>
+            <div className="studio-chat-header sx-chat-head">
+              <span className={`sx-chat-mark ${thinking ? 'busy' : ''}`}><MinalMark size={15} /></span>
+              <div className="sx-chat-id">
+                <h2 title={aiActive ? providerName : undefined}>minal</h2>
+                <span className={aiActive ? 'ok' : 'off'}>{thinking ? 'designing…' : aiActive ? 'online' : 'offline'}</span>
               </div>
-              <button
-                className="icon-button"
-                aria-label="Hide conversation"
-                title="Hide conversation"
-                onClick={() => setShowChat(false)}
-              >
-                <PanelLeftClose size={18} />
-              </button>
+              <button className="sx-icon" aria-label="Hide conversation" title="Hide conversation" onClick={() => setShowChat(false)}><PanelLeftClose size={16} /></button>
             </div>
 
-            <div className="conversation-date">YOUR DESIGN CONVERSATION</div>
-            {!aiActive && <div className="ai-connect-notice"><strong>Connect your AI designer</strong><p>Add your Google AI key to enable design tools. You can edit all design details manually.</p><Link to="/admin?tab=settings">Open AI settings <ArrowRight size={13} /></Link></div>}
+            {design.messages.length <= 1 && !thinking && (
+              <div className="sx-empty">
+                <h3>What are we<br /><em>making?</em></h3>
+                <p>Describe it in a sentence. I'll plan the structure, board and finish, then build it in 3D.</p>
+                <div className="sx-ideas">
+                  {['A rigid gift box for a silver spoon', 'A kraft mailer for candles', 'A tall tea canister, matte navy'].map(idea => (
+                    <button key={idea} onClick={() => aiActive ? send(idea) : setInput(idea)}><span>{idea}</span><ArrowUp size={14} /></button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {!aiActive && <div className="ai-connect-notice"><strong>Connect your AI designer</strong><p>Add a Google Gemini, OpenAI, Claude or OpenRouter key to turn on the design tools. You can still edit everything by hand.</p><Link to="/admin?tab=settings">Open AI settings <ArrowRight size={13} /></Link></div>}
 
-            <div className="studio-messages" ref={messagesRef} role="log" aria-label="Design conversation" aria-live="polite">
+            <div className={`studio-messages ${design.messages.length <= 1 && !thinking ? 'sx-hide' : ''}`} ref={messagesRef} role="log" aria-label="Design conversation" aria-live="polite">
               {design.messages.map(message => (
                 <motion.div
                   key={message.id}
@@ -675,9 +842,11 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                     {message.image && (
                       <img className="reference-preview" src={message.image} alt="Uploaded design reference" />
                     )}
-                    <p>{message.text}</p>
-                    {!!message.tools?.length && <details className="tool-history"><summary>{message.tools.length} tool actions</summary>{message.tools.map(tool => <div key={tool.id} className={tool.status === 'error' ? 'tool-error' : ''}><span>{tool.status === 'complete' ? '✓' : '!'}</span><div>{tool.summary}{!!tool.fields?.length && <small>{tool.fields.join(', ')}</small>}</div></div>)}</details>}
-                    {message.error && !thinking && <button className="retry-ai" onClick={() => { const previous = design.messages.slice(0, design.messages.indexOf(message)).reverse().find(item => item.role === 'user'); if (previous) void send(previous.text) }}>Retry request <RotateCcw size={12} /></button>}
+                    {message.magic && <span className="magic-tag"><WandSparkles size={11} /> Magic Build</span>}
+                    {message.text && <p>{message.text}</p>}
+                    {message.role === 'assistant' && !message.error && (() => { const summary = message.summary || changeSummary(message.tools); return summary ? <span className="change-summary"><Check size={11} /> {summary}</span> : null })()}
+                    {!!message.shots?.length && <div className="design-shots">{message.shots.map(shot => <button key={shot.label} type="button" onClick={() => setLightbox(shot)} aria-label={`Open ${shot.label.toLowerCase()} view larger`}><img src={shot.image} alt={`${design.name} — ${shot.label.toLowerCase()} view`} loading="lazy" /><span>{shot.label}</span></button>)}</div>}
+                    {message.error && !thinking && <button className="retry-ai" onClick={() => { const previous = design.messages.slice(0, design.messages.indexOf(message)).reverse().find(item => item.role === 'user'); if (previous) void send(previous.text, previous.magic ? 'magic' : 'chat') }}>Retry request <RotateCcw size={12} /></button>}
                     {message.role === 'user' && <CheckCheck size={12} className="message-tick" />}
                   </div>
                 </motion.div>
@@ -688,7 +857,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                   <span className="message-avatar">
                     <MinalMark size={14} />
                   </span>
-                  <div className="harness-progress"><span className="thinking-line"><SiriOrb active size={16} /><span className="shimmer-text">{progress || 'Planning…'}</span></span>{activeTools.slice(-3).map(tool => <small key={tool.id}>{tool.status === 'complete' ? '✓' : '!'} {tool.summary}</small>)}</div>
+                  <div className="harness-progress" aria-live="polite"><span className="thinking-line"><SiriOrb active size={16} /><span className="shimmer-text">{progress || 'Thinking…'}</span></span>{streamText && <p className="stream-text">{streamText}</p>}</div>
                 </div>
               )}
 
@@ -716,8 +885,18 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
 
             {/* Chat Compose Box */}
             <div className="chat-compose-area">
-              {!thinking && (
+              {!thinking && aiActive && design.chatStep === 0 && !magicMode && (
+                <button type="button" className="magic-build-card" onClick={() => magicBuild(input || design.brief)}>
+                  <span><WandSparkles size={16} /></span>
+                  <div><strong>Magic Build</strong><small>{(input || design.brief).trim() ? 'Build the whole package from your idea: shape, size, materials, colours, type and artwork.' : 'Describe your product in one sentence and watch it build live.'}</small></div>
+                  <ArrowRight size={14} />
+                </button>
+              )}
+              {!thinking && design.messages.length > 1 && (
                 <div className="chat-suggestions">
+                  <button type="button" className={`magic-chip ${magicMode ? 'active' : ''}`} aria-pressed={magicMode} onClick={() => input.trim() ? magicBuild(input) : setMagicMode(on => !on)}>
+                    <WandSparkles size={12} /> Magic Build
+                  </button>
                   {['Improve the typography', 'Explore a new structure', 'Review this design'].map(suggestion => (
                     <button key={suggestion} onClick={() => send(suggestion)}>
                       {suggestion}
@@ -728,19 +907,21 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
               )}
 
               <form
-                className={`studio-compose ${thinking ? 'is-thinking' : ''}`}
+                className={`studio-compose ${thinking ? 'is-thinking' : ''} ${magicMode ? 'is-magic' : ''}`}
                 onSubmit={e => {
                   e.preventDefault()
-                  send()
+                  void send(input, magicMode ? 'magic' : 'chat')
                 }}
               >
-                <SiriGlow active={thinking} variant="ring" />
                 <textarea
-                  aria-label="Message minal about your product"
+                  ref={textareaRef}
+                  aria-label={magicMode ? 'Describe your product for Magic Build' : 'Message minal about your product'}
                   placeholder={
-                    aiActive
-                      ? 'Say anything: "make a hexagonal box", "remove the top", "shopping bag with handles"…'
-                      : 'Connect AI in Settings, or use the design editors…'
+                    !aiActive
+                      ? 'Connect AI in Settings, or use the design editors…'
+                      : magicMode
+                        ? 'One sentence, e.g. "matte black luxury perfume box with gold foil logo"'
+                        : 'Say anything: "make a hexagonal box", "remove the top", "shopping bag with handles"…'
                   }
                   value={input}
                   onChange={e => setInput(e.target.value)}
@@ -749,8 +930,9 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                   onKeyDown={e => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()
-                      send()
+                      void send(input, magicMode ? 'magic' : 'chat')
                     }
+                    if (e.key === 'Escape' && magicMode) setMagicMode(false)
                   }}
                 />
                 <div>
@@ -764,7 +946,16 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                   >
                     {uploading ? <Loader2 size={18} className="spin" /> : <Paperclip size={18} />}
                   </button>
-                  <span>Describe a change to update your preview</span>
+                  <button
+                    type="button"
+                    className={`icon-button magic-button ${magicMode ? 'active' : ''}`}
+                    aria-label="Magic Build: build the whole package from one sentence"
+                    title="Magic Build: build the whole package from one sentence"
+                    disabled={!aiActive || uploading}
+                    onClick={() => magicBuild()}
+                  >
+                    <WandSparkles size={17} />
+                  </button>
                   <button
                     type={thinking ? "button" : "submit"}
                     onClick={thinking ? () => requestRef.current?.abort() : undefined}
@@ -787,9 +978,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                   e.target.value = ''
                 }}
               />
-              <p className="assistant-disclosure">
-                <Sparkles size={10} /> AI edits through tools · completed edits can be undone
-              </p>
+              <p className="sx-foot">{aiActive ? <>Enter to send · Shift+Enter for a new line</> : <>AI is offline. <Link to="/admin?tab=settings">Connect a key</Link> or edit with the tools.</>}</p>
             </div>
           </aside>
         )}
@@ -813,18 +1002,11 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                   {design.hasHandles && <span className="concept-tag tag-accent">HANDLES</span>}
                   {design.customCode && <span className="concept-tag tag-accent">CUSTOM 3D CODE</span>}
                 </div>
-                <div className="view-toggle">
-                  <button className={view === '3d' ? 'selected' : ''} onClick={() => setView('3d')}>
-                    <Box size={14} /> 3D
-                  </button>
-                  <button className={view === '2d' ? 'selected' : ''} onClick={() => setView('2d')}>
-                    <Layers3 size={14} /> 2D
-                  </button>
-                </div>
+
               </div>
 
               {view === '3d' || flatMode === 'projection' ? (
-                <SceneStage thinking={thinking} interactive3d={view === '3d'} pulse={completedTools} label={latestTool}>
+                <SceneStage thinking={thinking} interactive3d={view === '3d'} pulse={toolPulse} label={progress || undefined}>
                   <ProductScene
                     design={design}
                     openBox={openBox}
@@ -901,7 +1083,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                     </div>
                   </>
                 ) : (
-                  <span>Millimeter dimensions · Pink cut / cyan fold · Full artwork in SVG & CDR</span>
+                  <span>1:1 mm · cut / crease / perf · 3 mm bleed & safe zone · crop marks · editable SVG, CorelDRAW & PDF export</span>
                 )}
               </div>
             </div>
@@ -934,15 +1116,16 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                 {downloadMenu && (
                   <div className="download-menu">
                     <button onClick={exportCdr}>
-                      <Layers3 size={15} /> CorelDRAW Dieline (.cdr)
+                      <Layers3 size={15} /> CorelDRAW, fully editable (.cdr / package)
                     </button>
+                    <button onClick={exportPdf}><FileText size={15} /> Print-proof PDF (300 dpi + vector die lines)</button>
                     <button onClick={exportDxf}>
                       <FileText size={15} /> AutoCAD / Laser Die (.dxf)
                     </button>
                     <button onClick={exportSvg}>
-                      <Layers3 size={15} /> Full design & dimensions (.svg)
+                      <Layers3 size={15} /> Editable vector SVG (live text, layers)
                     </button>
-                    <button onClick={exportFlatPng}><ImagePlus size={15} /> Full 2D design image (.png)</button>
+                    <button onClick={exportFlatPng}><ImagePlus size={15} /> Full 2D design image (300 dpi .png)</button>
                     <button onClick={() => { downloadFile(JSON.stringify(design, null, 2), `${safeName(design.name)}-design.json`, 'application/json'); setDownloadMenu(false) }}><FileText size={15} /> Editable project backup (.json)</button>
                     <button
                       onClick={() => {
@@ -967,13 +1150,13 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
               3D concept preview · Print dimensions and structure need manufacturer review.
             </p>
             <div ref={svgRef} className="export-dieline">
-              <Dieline design={design} />
+              {exportMount && <Dieline design={design} />}
             </div>
           </div>
 
-          <AnimatePresence>{showArtwork && <motion.div className="specs-drawer print-drawer" initial={{ opacity: 0, x: 280 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 280 }}><div className="specs-drawer-header"><h3>Print designs & images</h3><button className="icon-button" aria-label="Close print designs" onClick={() => setShowArtwork(false)}><X size={18} /></button></div><div className="specs-drawer-content"><ArtworkEditor design={design} onChange={patch} /></div></motion.div>}</AnimatePresence>
+          <AnimatePresence>{showArtwork && <motion.div className="specs-drawer print-drawer" initial={{ opacity: 0, x: 280 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 280 }}><div className="specs-drawer-header"><h3>Print designs & images</h3><button className="icon-button" aria-label="Close print designs" onClick={() => setShowArtwork(false)}><X size={18} /></button></div><div className="specs-drawer-content"><Suspense fallback={<p className="panel-description">Loading print designs…</p>}><ArtworkEditor design={design} onChange={patch} /></Suspense></div></motion.div>}</AnimatePresence>
           <AnimatePresence>{showType && <motion.div className="specs-drawer" initial={{ opacity: 0, x: 280 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 280 }}><div className="specs-drawer-header"><h3>Typography & branding</h3><button className="icon-button" aria-label="Close typography" onClick={() => setShowType(false)}><X size={18} /></button></div><div className="specs-drawer-content"><TypographyEditor design={design} onChange={patch} /></div></motion.div>}</AnimatePresence>
-          <AnimatePresence>{showSurface && <motion.div className="specs-drawer" initial={{ opacity: 0, x: 280 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 280 }}><div className="specs-drawer-header"><h3>Textures & product information</h3><button className="icon-button" aria-label="Close textures" onClick={() => setShowSurface(false)}><X size={18} /></button></div><div className="specs-drawer-content"><SurfaceEditor design={design} onChange={patch} /><ProductInfoEditor design={design} onChange={patch} /></div></motion.div>}</AnimatePresence>
+          <AnimatePresence>{showSurface && <motion.div className="specs-drawer" initial={{ opacity: 0, x: 280 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 280 }}><div className="specs-drawer-header"><h3>Textures & product information</h3><button className="icon-button" aria-label="Close textures" onClick={() => setShowSurface(false)}><X size={18} /></button></div><div className="specs-drawer-content"><Suspense fallback={<p className="panel-description">Loading textures…</p>}><SurfaceEditor design={design} onChange={patch} /><ProductInfoEditor design={design} onChange={patch} /></Suspense></div></motion.div>}</AnimatePresence>
           {/* Slide-over Specs Editor Drawer */}
           <AnimatePresence>
             {showSpecs && (
@@ -1063,73 +1246,28 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
 
           {/* Packaging Templates Modal / Drawer */}
           <AnimatePresence>
-            {showTemplates && (
-              <div className="modal-backdrop" onClick={() => setShowTemplates(false)}>
-                <motion.div
-                  className="templates-modal"
-                  role="dialog"
-                  aria-modal="true"
-                  initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                  onClick={e => e.stopPropagation()}
-                >
-                  <div className="templates-modal-header">
-                    <div>
-                      <span className="eyebrow">PACKAGING TEMPLATES LIBRARY</span>
-                      <h2>Choose a Starting Template</h2>
-                      <p>Instant 3D structures ready to customize with AI.</p>
-                    </div>
-                    <button className="icon-button" onClick={() => setShowTemplates(false)}>
-                      <X size={20} />
-                    </button>
-                  </div>
-
-                  <div className="templates-filter-bar">
-                    {templateCategories.map(cat => (
-                      <button
-                        key={cat}
-                        className={`filter-btn ${templateFilter === cat ? 'active' : ''}`}
-                        onClick={() => setTemplateFilter(cat)}
-                      >
-                        {cat}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="templates-grid-modal">
-                    {filteredTemplates.map(t => (
-                      <button
-                        key={t.id}
-                        className="template-card"
-                        onClick={() => applyTemplate(t)}
-                      >
-                        <div className="template-card-icon">
-                          {t.icon === 'bag' ? <ShoppingBag size={20} /> : t.icon === 'canister' ? <Layers3 size={20} /> : <Box size={20} />}
-                        </div>
-                        <div className="template-card-info">
-                          <strong>{t.name}</strong>
-                          <span className="template-card-dims">
-                            {t.dimensions.length} × {t.dimensions.width} × {t.dimensions.height} mm
-                          </span>
-                          <p>{t.description}</p>
-                          <div className="template-card-tags">
-                            <span className="badge">{t.category}</span>
-                            {t.openTop && <span className="badge badge-subtle">Open Top</span>}
-                            {t.hasHandles && <span className="badge badge-subtle">Handles</span>}
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              </div>
-            )}
+            {showTemplates && <Suspense fallback={null}><TemplateLibrary design={design} onApply={applyLibrary} onClose={() => setShowTemplates(false)} /></Suspense>}
           </AnimatePresence>
         </section>
       </div>
 
       {order && <OrderModal design={design} onClose={closeOrder} />}
+      <AnimatePresence>
+        {lightbox && (
+          <motion.div className="shot-lightbox" role="dialog" aria-modal="true" aria-label={`${lightbox.label} view`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setLightbox(null)} onKeyDown={e => { if (e.key === 'Escape') setLightbox(null) }}>
+            <motion.figure initial={{ scale: .96, y: 8 }} animate={{ scale: 1, y: 0 }} exit={{ scale: .97 }} onClick={e => e.stopPropagation()}>
+              <img src={lightbox.image} alt={`${design.name} — ${lightbox.label.toLowerCase()} view`} />
+              <figcaption>
+                <span>{design.name} · {lightbox.label}</span>
+                <span>
+                  <button type="button" className="button button-lime button-sm" autoFocus onClick={() => { const a = document.createElement('a'); a.href = lightbox.image; a.download = `${safeName(design.name)}-${safeName(lightbox.label)}.${lightbox.image.startsWith('data:image/webp') ? 'webp' : 'jpg'}`; a.click() }}><Download size={14} /> Download</button>
+                  <button type="button" className="icon-button" aria-label="Close preview" onClick={() => setLightbox(null)}><X size={16} /></button>
+                </span>
+              </figcaption>
+            </motion.figure>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

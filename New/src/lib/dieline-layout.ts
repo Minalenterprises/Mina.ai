@@ -2,7 +2,8 @@ import type { Design } from './types'
 import { getShapeParams, resolveShape, roundLayout, ROUND_LABEL_ARC, shapeFootprint } from './shapes'
 
 export type Point = [number, number]
-export type Rule = { points: Point[]; closed?: boolean; layer: 'cut' | 'fold' }
+/** cut = steel rule, fold = crease/score, perf = perforation / tear line. */
+export type Rule = { points: Point[]; closed?: boolean; layer: 'cut' | 'fold' | 'perf' }
 /** `frame` overrides the printed area (mm, centred unless cy is given) so it matches the 3D label aspect. */
 export type Panel = { id: string; name: string; x: number; y: number; width: number; height: number; polygon?: Point[]; circle?: boolean; artwork?: 'front' | 'lid' | 'info'; frame?: { width: number; height: number; cy?: number }; rotate?: boolean }
 export type Dimension = { x1: number; y1: number; x2: number; y2: number; label: string }
@@ -96,7 +97,7 @@ export function buildDieline(design: Design): FlatLayout {
       result.notes.push('Bottom information supplied as a separate adhesive label for the assembled bag.')
     }
     result.notes.push(bag ? `Turnover ${mm(top)} mm · bottom fold ${mm(flap)} mm · glue lap 15 mm.` : 'Concept closure flaps; locking tabs and tuck allowances require a converter specification.')
-  } else if (shape === 'canister') {
+  } else if (shape === 'canister' || shape === 'hat-box') {
     const diameter = Math.min(L, W), circumference = Math.PI * diameter, x = 24, y = 60, r = diameter / 2
     result.title = 'CANISTER · WRAP + DISCS'
     rect('cut', x, y, circumference + 15, H); line('fold', x + circumference, y, x + circumference, y + H)
@@ -107,6 +108,16 @@ export function buildDieline(design: Design): FlatLayout {
       const p = panel(`disc-${i}`, i ? 'LID DISC' : 'BOTTOM DISC', dx, dy, diameter, diameter, i ? 'lid' : 'info')
       p.circle = true
       result.holes.push({ x: dx + r, y: dy + r, radius: r }); dimH(dx, dy + diameter + 10, diameter, 'Diameter')
+    }
+    if (shape === 'hat-box') {
+      result.title = 'HAT BOX · BODY WRAP + LID RIM + DISCS'
+      const rl2 = roundLayout(design)
+      if (!design.openTop) {
+        const ry = y + H + 38 + diameter + 30, rimC = Math.PI * (diameter + 4)
+        rect('cut', x, ry, rimC + 15, rl2.capH); line('fold', x + rimC, ry, x + rimC, ry + rl2.capH)
+        panel('lid-rim', 'LID RIM', x, ry, rimC, rl2.capH); panel('rim-glue', 'GLUE LAP', x + rimC, ry, 15, rl2.capH)
+        dimV(x + rimC + 25, ry, rl2.capH, 'Lid rim')
+      }
     }
     result.notes.push(`Circular diameter ${mm(diameter)} mm · glue overlap 15 mm; wrap circumference excludes overlap.`)
   } else if (shape === 'hexagon') {
@@ -166,6 +177,7 @@ export function buildDieline(design: Design): FlatLayout {
   const xs = result.rules.flatMap(r => r.points.map(p => p[0])).concat(result.dimensions.map(d => Math.max(d.x1, d.x2) + 14))
   const ys = result.rules.flatMap(r => r.points.map(p => p[1])).concat(result.dimensions.map(d => Math.max(d.y1, d.y2) + 8))
   for (const h of result.holes) { xs.push(h.x + h.radius); ys.push(h.y + h.radius) }
+  // The 24 mm margins below also hold bleed (3), crop-mark offset (3) and crop marks (6).
   result.width = Math.max(320, ...xs) + 24
   if (design.customCode) result.notes.push('Custom 3D code is not unfolded; this sheet shows the nominal base packaging.')
   result.footerY = Math.max(...ys) + 24
@@ -183,7 +195,7 @@ type Tools = {
   poly: (layer: Rule['layer'], points: Point[], closed?: boolean) => void
   polygonPanel: (id: string, name: string, points: Point[], artwork?: Panel['artwork'], frame?: Panel['frame']) => Panel
 }
-const EXTRA_SHAPES = new Set(['octagon', 'prism', 'extrude', 'pyramid', 'pillow', 'gable', 'mailer', 'tray', 'sleeve', 'display', 'pouch', 'sachet', 'tube', 'bottle', 'jar', 'lathe'])
+const EXTRA_SHAPES = new Set(['snap-lock', 'crash-lock', 'reverse-tuck', 'wine-box', 'briefcase', 'telescope', 'book-box', 'cake-box', 'cone', 'triangle', 'tetra', 'heart', 'octagon', 'prism', 'extrude', 'pyramid', 'pillow', 'gable', 'mailer', 'tray', 'sleeve', 'display', 'pouch', 'sachet', 'tube', 'bottle', 'jar', 'lathe'])
 const arc = (x1: number, y1: number, x2: number, y2: number, sag: number, steps = 24): Point[] =>
   Array.from({ length: steps + 1 }, (_, i): Point => { const k = i / steps; return [x1 + (x2 - x1) * k, y1 + (y2 - y1) * k + Math.sin(k * Math.PI) * sag] })
 
@@ -191,7 +203,9 @@ function buildExtra(design: Design, shape: string, result: FlatLayout, T: Tools)
   const { length: L, width: W, height: H } = design.dimensions
   const info = design.productInfo, infoBack = info?.placement === 'back'
   const x0 = 24, y0 = 60, glue = 15
-  if (shape === 'octagon' || shape === 'prism' || shape === 'extrude') {
+  if (CARTON_VARIANTS.has(shape)) cartonVariant(design, shape, result, T)
+  else if (shape === 'telescope' || shape === 'book-box' || shape === 'cake-box' || shape === 'cone' || shape === 'triangle' || shape === 'tetra') buildStructures(design, shape, result, T)
+  else if (shape === 'octagon' || shape === 'prism' || shape === 'extrude' || shape === 'heart') {
     // Side strip: one panel per footprint edge, then base and lid polygons.
     const fp = shapeFootprint(design).map(([x, z]): Point => [x * L / 2, z * W / 2])
     const taper = getShapeParams(design).taper
@@ -360,7 +374,8 @@ function buildExtra(design: Design, shape: string, result: FlatLayout, T: Tools)
       T.dimV(x0 + L + 8, y0 + H + 20, gusset, 'Gusset')
     }
     T.dimH(x0, y0 - 10, L, 'W'); T.dimV(x0 - 10, y0, H, 'H')
-    result.notes.push(`Dashed lines mark ${seal} mm heat seals. Flexible film: printer confirms web direction and eye-mark.`)
+    for (const px of [x0, x0 + L + 20]) result.rules.push({ layer: 'perf', points: [[px, y0 + seal * 2.2], [px + L, y0 + seal * 2.2]] })
+    result.notes.push(`Dotted line marks the tear / easy-open perforation. Dashed lines mark ${seal} mm heat seals. Flexible film: printer confirms web direction and eye-mark.`)
   } else {
     // Round containers: the printed part is the wrap label (plus a cap/lid disc).
     const r = roundLayout(design), circumference = 2 * Math.PI * r.labelR, bandH = Math.max(10, r.band[1] - r.band[0])
@@ -387,4 +402,313 @@ function buildExtra(design: Design, shape: string, result: FlatLayout, T: Tools)
     if (!tube) result.notes.push(`${shape === 'lathe' ? 'Custom revolved' : shape === 'jar' ? 'Jar' : 'Bottle'} container is sourced as a finished part; this sheet is the paper label (${mm(circumference)} × ${mm(bandH)} mm).`)
     else result.notes.push(`Tube Ø ${mm(r.R * 2)} mm · cap ${mm(r.capH)} mm · 15 mm glue overlap.`)
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Extended structures
+// ---------------------------------------------------------------------------------------------
+
+const CARTON_VARIANTS = new Set(['snap-lock', 'crash-lock', 'reverse-tuck', 'wine-box', 'briefcase'])
+/** A flap drawn in panel-local coordinates: u along the panel edge (0…len), v outward from the fold (≥ 0). */
+type Flap = { name: string; pts: Point[]; folds?: Point[][]; cuts?: Point[][]; artwork?: Panel['artwork']; frame?: (len: number) => { width: number; height: number; v: number } }
+const noFlap = (len: number): Flap => ({ name: '', pts: [[0, 0], [len, 0]] })
+const tuckFlap = (len: number, depth: number): Flap => {
+  const tongue = Math.min(15, depth * .5)
+  return { name: 'TUCK FLAP', pts: [[0, 0], [0, depth], [2, depth + tongue * .65], [Math.min(7, len * .2), depth + tongue], [len - Math.min(7, len * .2), depth + tongue], [len - 2, depth + tongue * .65], [len, depth], [len, 0]], folds: [[[0, depth], [len, depth]]] }
+}
+const dustFlap = (len: number, depth: number): Flap => ({ name: 'DUST FLAP', pts: [[0, 0], [1.5, depth * .3], [len * .3, depth], [len - 1.5, depth], [len, depth * .45], [len, 0]] })
+const snapLong = (len: number, depth: number): Flap => ({ name: 'LOCK FLAP', pts: [[0, 0], [0, depth], [len * .32, depth], [len * .32, depth * .72], [len * .68, depth * .72], [len * .68, depth], [len, depth], [len, 0]] })
+const snapShort = (len: number, depth: number): Flap => ({ name: 'LOCK TAB', pts: [[0, 0], [len * .18, depth], [len * .82, depth], [len, 0]] })
+const crashFlap = (len: number, depth: number, glue: boolean): Flap => ({ name: glue ? 'CRASH-LOCK + GLUE' : 'CRASH-LOCK FLAP', pts: [[0, 0], [0, depth], [len - depth * .7, depth], [len, 0]], folds: [[[0, 0], [Math.min(len * .45, depth * .95), depth]]] })
+const stadium = (cx: number, cy: number, w: number, h: number): Point[] => {
+  const r = h / 2, pts: Point[] = []
+  for (let i = 0; i <= 10; i++) { const a = Math.PI / 2 + i * Math.PI / 10; pts.push([cx - w / 2 + r + Math.cos(a) * r, cy + Math.sin(a) * r]) }
+  for (let i = 0; i <= 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 10; pts.push([cx + w / 2 - r + Math.cos(a) * r, cy + Math.sin(a) * r]) }
+  return pts
+}
+const handleHalf = (len: number, half: number, plate: number): Flap => {
+  const slot = Math.min(len * .32, 75), slotH = Math.max(6, plate * .34)
+  return { name: 'TOP + HANDLE', pts: [[0, 0], [0, half], [plate * .3, half + plate], [len - plate * .3, half + plate], [len, half], [len, 0]], folds: [[[0, half], [len, half]]], cuts: [stadium(len / 2, half + plate * .55, slot, slotH)] }
+}
+
+function cartonVariant(design: Design, shape: string, result: FlatLayout, T: Tools) {
+  const { length: L, width: W, height: H } = design.dimensions
+  const info = design.productInfo, infoBack = info?.placement === 'back'
+  const briefcase = shape === 'briefcase', glue = 15, Hb = briefcase ? H * .8 : H, plate = H - Hb
+  const lengths = [L, W, L, W], names = ['FRONT', 'RIGHT', 'BACK', 'LEFT']
+  const open = !!design.openTop
+  const top = lengths.map((len, i): Flap => {
+    if (open) return noFlap(len)
+    if (briefcase) return i % 2 ? dustFlap(len, W * .45) : handleHalf(len, W / 2, plate)
+    if (i === 2) return { ...tuckFlap(len, W), artwork: 'lid', frame: l => ({ width: l * .8, height: W * .72, v: W / 2 }) }
+    return i % 2 ? dustFlap(len, Math.min(W * .8, L * .55)) : noFlap(len)
+  })
+  if (briefcase && !open) top[0] = { ...top[0], artwork: 'lid', frame: l => ({ width: l * .7, height: W * .36, v: W * .25 }) }
+  const bottom = lengths.map((len, i): Flap => {
+    if (shape === 'snap-lock' || briefcase) return i % 2 ? snapShort(len, W * .5) : snapLong(len, W * .8)
+    if (shape === 'crash-lock') return crashFlap(len, W * (i % 2 ? .55 : .7), i % 2 === 0)
+    if (shape === 'reverse-tuck') return i === 0 ? tuckFlap(len, W) : i % 2 ? dustFlap(len, Math.min(W * .8, L * .55)) : noFlap(len)
+    return i === 2 ? tuckFlap(len, W) : i % 2 ? dustFlap(len, Math.min(W * .8, L * .55)) : noFlap(len)
+  })
+  const depth = (f: Flap) => Math.max(0, ...f.pts.map(p => p[1]))
+  const topDepth = Math.max(0, ...top.map(depth)), bottomDepth = Math.max(0, ...bottom.map(depth))
+  const x = 24, y = 64 + topDepth, total = glue + 2 * (L + W)
+  result.title = ({ 'snap-lock': 'SNAP-LOCK BOTTOM CARTON', 'crash-lock': 'CRASH-LOCK BOTTOM CARTON', 'reverse-tuck': 'REVERSE TUCK END CARTON', 'wine-box': 'WINE CARTON + NECK INSERT', briefcase: 'BRIEFCASE HANDLE CARTON' } as Record<string, string>)[shape] + ' · FLAT ARTWORK'
+  T.polygonPanel('glue', 'GLUE LAP', [[x + glue, y], [x, y + 4], [x, y + Hb - 4], [x + glue, y + Hb]])
+  const outline: Point[] = [[x + glue, y], [x, y + 4], [x, y + Hb - 4], [x + glue, y + Hb]]
+  const starts: number[] = []
+  let px = x + glue
+  lengths.forEach((len, i) => {
+    starts.push(px)
+    const p = T.panel(`body-${i}`, names[i], px, y, len, Hb, i === 0 ? 'front' : i === 2 && infoBack ? 'info' : undefined)
+    if (i === 0) p.frame = { width: len * .9, height: Hb * .64, cy: y + Hb * .45 }
+    T.dimH(px, y - topDepth - 8, len, i % 2 ? 'W' : 'L')
+    px += len
+  })
+  const place = (f: Flap, i: number, side: 'top' | 'bottom') => {
+    const ox = starts[i], map = ([u, v]: Point): Point => [ox + u, side === 'top' ? y - v : y + Hb + v]
+    return { pts: f.pts.map(map), folds: (f.folds || []).map(line => line.map(map)), cuts: (f.cuts || []).map(c => c.map(map)) }
+  }
+  let bottomInfo = false
+  bottom.forEach((f, i) => {
+    const placed = place(f, i, 'bottom')
+    outline.push(...placed.pts)
+    if (!f.name) return
+    const art: Panel['artwork'] = !infoBack && !bottomInfo && depth(f) >= W * .7 ? 'info' : undefined
+    if (art) bottomInfo = true
+    const bp = T.polygonPanel(`bottom-${i}`, f.name, placed.pts, art)
+    // Keep the information block on the solid part of the flap (above lock notches and tongues).
+    if (art) bp.frame = { width: lengths[i] * .84, height: Math.min(depth(f), W) * .62, cy: y + Hb + Math.min(depth(f), W) * .36 }
+    T.line('fold', starts[i], y + Hb, starts[i] + lengths[i], y + Hb)
+    placed.folds.forEach(line => T.poly('fold', line, false))
+  })
+  outline.push([x + total, y + Hb], [x + total, y])
+  for (let i = 3; i >= 0; i--) {
+    const f = top[i], placed = place(f, i, 'top')
+    outline.push(...[...placed.pts].reverse())
+    if (!f.name) continue
+    const p = T.polygonPanel(`top-${i}`, f.name, placed.pts, f.artwork)
+    if (f.frame) { const fr = f.frame(lengths[i]); p.frame = { width: fr.width, height: fr.height, cy: y - fr.v } }
+    T.line('fold', starts[i], y, starts[i] + lengths[i], y)
+    placed.folds.forEach(line => T.poly('fold', line, false))
+    placed.cuts.forEach(c => T.poly('cut', c))
+  }
+  T.poly('cut', outline)
+  starts.forEach(sx => T.line('fold', sx, y, sx, y + Hb))
+  T.dimV(x + total + 10, y, Hb, briefcase ? 'Body' : 'H')
+  if (bottomDepth) T.dimV(x + total + 22, y + Hb, bottomDepth, 'Bottom')
+  if (briefcase && !open) T.dimV(x + total + 22, y - topDepth, topDepth, 'Top + handle')
+  T.dimH(x, y + Hb + bottomDepth + 12, total, 'Blank')
+  let end = y + Hb + bottomDepth + 24
+  if (shape === 'wine-box') {
+    const iy = end + 22, ix = 24, flap = Math.min(25, H * .1), d = Math.min(L, W) * .42
+    T.panel('insert-l', 'INSERT LEG', ix, iy, flap, L); T.panel('insert-top', 'NECK INSERT', ix + flap, iy, W, L); T.panel('insert-r', 'INSERT LEG', ix + flap + W, iy, flap, L)
+    T.rect('cut', ix, iy, W + 2 * flap, L); T.line('fold', ix + flap, iy, ix + flap, iy + L); T.line('fold', ix + flap + W, iy, ix + flap + W, iy + L)
+    result.holes.push({ x: ix + flap + W / 2, y: iy + L / 2, radius: d / 2 })
+    T.dimH(ix, iy + L + 9, W + 2 * flap, 'Insert'); end = iy + L
+    result.notes.push(`Neck insert hole Ø ${mm(d)} mm; set to the actual bottle neck diameter before cutting.`)
+  }
+  result.notes.push(shape === 'snap-lock' || briefcase ? '1-2-3 snap-lock bottom: lock flaps interleave without glue; slot depth set by converter for board caliper.'
+    : shape === 'crash-lock' ? 'Crash-lock flaps and pre-glue zones shown schematically (diagonal score = glue fold); converter supplies the exact auto-bottom geometry.'
+      : shape === 'reverse-tuck' ? 'Reverse tuck: top tuck hinges on the back panel, bottom tuck on the front panel.'
+        : 'Straight tuck end: both tucks hinge on the back panel.')
+  void end
+}
+
+function buildStructures(design: Design, shape: string, result: FlatLayout, T: Tools) {
+  const { length: L, width: W, height: H } = design.dimensions
+  const info = design.productInfo, infoBack = info?.placement === 'back'
+  const x0 = 24, y0 = 60, glue = 15, board = design.wallThickness ?? 2
+  if (shape === 'telescope') {
+    result.title = 'FULL TELESCOPE · BASE + DEEP LID'
+    const end = T.tray('base', x0, y0, L, W, H)
+    if (!design.openTop) {
+      const c = board * 2, lidH = H * .85
+      T.tray('lid', x0, end + 40, L + c, W + c, lidH, true)
+      const baseFront = result.panels.find(p => p.id === 'base-front'), lidFront = result.panels.find(p => p.id === 'lid-front')
+      if (baseFront) baseFront.artwork = undefined
+      if (lidFront) { lidFront.artwork = 'front'; lidFront.frame = { width: (L + c) * .85, height: lidH * .7 } }
+      const lidTop = result.panels.find(p => p.id === 'lid-base'); if (lidTop) lidTop.frame = { width: (L + c) * .9, height: (W + c) * .86 }
+      result.notes.push(`Deep lid ${mm(lidH)} mm (85% of base height) with ${mm(c)} mm clearance; covers the base front, so the front print sits on the lid.`)
+    }
+  } else if (shape === 'book-box') {
+    result.title = 'BOOK BOX · TRAY + HARD COVER WRAP'
+    const end = T.tray('tray', x0, y0, L, W, H)
+    if (!design.openTop) {
+      const turn = 15, spine = H + board * 2, gap = board * 1.5, y = end + 40 + turn, x = x0 + turn
+      const widths = [L, spine, L], names = ['FRONT COVER', 'SPINE', 'BOTTOM BOARD']
+      const total = widths.reduce((a, b) => a + b, 0) + gap * 2
+      const c = turn * .7
+      T.poly('cut', [[x - turn + c, y - turn], [x + total + turn - c, y - turn], [x + total + turn, y - turn + c], [x + total + turn, y + W + turn - c], [x + total + turn - c, y + W + turn], [x - turn + c, y + W + turn], [x - turn, y + W + turn - c], [x - turn, y - turn + c]])
+      T.rect('fold', x, y, total, W)
+      let bx = x
+      widths.forEach((w, i) => {
+        const p = T.panel(`cover-${i}`, names[i], bx, y, w, W, i === 0 ? 'lid' : undefined)
+        if (i === 0) p.frame = { width: w * .86, height: W * .82 }
+        if (i) { T.line('fold', bx - gap, y, bx - gap, y + W); T.line('fold', bx, y, bx, y + W) }
+        T.dimH(bx, y + W + turn + 8, w, i === 1 ? 'Spine' : '')
+        bx += w + gap
+      })
+      for (const [name, px, py, pw, ph] of [['TURN-IN', x - turn, y - turn, total + 2 * turn, turn], ['TURN-IN', x - turn, y + W, total + 2 * turn, turn]] as const) T.panel(`turn-${py}`, name, px, py, pw, ph)
+      T.dimV(x + total + turn + 10, y, W, 'W')
+      result.notes.push(`Cover boards ${mm(board)} mm greyboard; ${turn} mm turn-ins and ${mm(gap)} mm hinge gaps. Magnets sit under the front cover edge and in the tray front.`)
+    }
+  } else if (shape === 'cake-box') {
+    result.title = 'CAKE BOX · ONE PIECE WITH WINDOW LID'
+    const tuck = H * .8, oy = y0 + W + tuck
+    T.tray('cake', x0, oy, L, W, H)
+    const lx = x0 + H
+    if (!design.openTop) {
+      T.panel('cake-lid', 'LID', lx, oy - W, L, W, 'lid').frame = { width: L * .7, height: W * .14, cy: oy - W + W * .1 }
+      T.panel('cake-tuck', 'TUCK FRONT', lx, oy - W - tuck, L, tuck)
+      T.line('fold', lx, oy, lx + L, oy); T.line('fold', lx, oy - W, lx + L, oy - W)
+      const ww = L * .7, wh = W * .58, wx = lx + (L - ww) / 2, wy = oy - W / 2 + W * .06 - wh / 2
+      T.rect('cut', wx, wy, ww, wh); T.panel('window-hole', 'CLEAR WINDOW', wx, wy, ww, wh)
+      const dust = Math.min(H * .85, L * .3)
+      T.poly('cut', [[lx, oy - W - tuck], [lx + L, oy - W - tuck], [lx + L, oy - W], [lx + L + dust, oy - W + W * .12], [lx + L + dust, oy - W * .12], [lx + L, oy], [lx, oy], [lx - dust, oy - W * .12], [lx - dust, oy - W + W * .12], [lx, oy - W]])
+      T.line('fold', lx, oy - W, lx, oy); T.line('fold', lx + L, oy - W, lx + L, oy)
+      T.polygonPanel('cake-dust-l', 'DUST', [[lx, oy - W], [lx - dust, oy - W + W * .12], [lx - dust, oy - W * .12], [lx, oy]])
+      T.polygonPanel('cake-dust-r', 'DUST', [[lx + L, oy - W], [lx + L + dust, oy - W + W * .12], [lx + L + dust, oy - W * .12], [lx + L, oy]])
+      T.dimV(lx - dust - 10, oy - W, W, 'Lid'); T.dimV(lx - dust - 10, oy - W - tuck, tuck, 'Tuck')
+      result.notes.push(`Window ${mm(ww)} × ${mm(wh)} mm; food-safe clear film glued inside. Lid hinges on the back wall.`)
+    }
+  } else if (shape === 'cone') {
+    const R = Math.min(L, W) / 2, slant = Math.hypot(R, H), theta = 2 * Math.PI * R / slant
+    result.title = 'CONE SLEEVE · FAN BLANK'
+    const half = Math.min(theta / 2, Math.PI * .98)
+    const minX = Math.min(0, ...[-half, half].map(a => Math.sin(a) * slant)), ax = x0 + glue + Math.max(slant * Math.sin(Math.min(half, Math.PI / 2)), -minX), ay = y0 + Math.max(0, -Math.cos(half) * slant) + 4
+    const arcPts: Point[] = []
+    for (let i = 0; i <= 64; i++) { const a = -half + (2 * half * i) / 64; arcPts.push([ax + Math.sin(a) * slant, ay + Math.cos(a) * slant]) }
+    const fan: Point[] = [[ax, ay], ...arcPts]
+    const p = T.polygonPanel('cone-fan', 'CONE WALL', fan, 'front')
+    const rl = roundLayout(design), bandMid = (rl.band[0] + rl.band[1]) / 2, along = slant * bandMid / H
+    p.frame = { width: rl.labelR * ROUND_LABEL_ARC, height: (rl.band[1] - rl.band[0]) * slant / H * .9, cy: ay + along }
+    // Glue flap along the left straight edge.
+    const ex = Math.sin(-half), ey = Math.cos(-half), nx = -ey, ny = ex
+    const g: Point[] = [[ax, ay], [ax + ex * slant, ay + ey * slant], [ax + ex * slant * .97 + nx * 12, ay + ey * slant * .97 + ny * 12], [ax + ex * 12 + nx * 8, ay + ey * 12 + ny * 8]]
+    T.polygonPanel('cone-glue', 'GLUE', g)
+    T.poly('cut', [g[3], g[2], g[1], ...arcPts.slice(1), [ax, ay]])
+    T.line('fold', ax, ay, ax + ex * slant, ay + ey * slant)
+    T.dimV(Math.max(...arcPts.map(q => q[0])) + 12, ay, slant, 'Slant')
+    result.notes.push(`Fan radius ${mm(slant)} mm, sweep ${mm(theta * 180 / Math.PI)}°, rim Ø ${mm(R * 2)} mm; 12 mm glue flap.`)
+  } else if (shape === 'triangle') {
+    result.title = 'TRIANGULAR PRISM · STRIP + END CAPS'
+    const s = Math.hypot(W / 2, H), x = x0 + H + 4, rows: [string, number, Panel['artwork']][] = [['GLUE LAP', 12, undefined], ['BACK SLOPE', s, infoBack ? 'info' : undefined], ['BASE', W, infoBack ? undefined : 'info'], ['FRONT SLOPE', s, 'front']]
+    let y = y0
+    const ys: number[] = []
+    rows.forEach(([name, hgt, art], i) => {
+      ys.push(y)
+      const p = T.panel(`tri-${i}`, name, x, y, L, hgt, art)
+      if (art === 'front') p.frame = { width: L * .84, height: s * .62 }
+      if (i) T.line('fold', x, y, x + L, y)
+      y += hgt
+    })
+    const by = ys[2], capL: Point[] = [[x, by], [x, by + W], [x - H, by + W / 2]], capR: Point[] = [[x + L, by], [x + L, by + W], [x + L + H, by + W / 2]]
+    T.polygonPanel('tri-cap-l', 'END CAP', capL); T.polygonPanel('tri-cap-r', design.openTop ? 'END CAP' : 'END FLAP', capR)
+    T.line('fold', x, by, x, by + W); T.line('fold', x + L, by, x + L, by + W)
+    T.poly('cut', [[x, y0], [x + L, y0], [x + L, by], [x + L + H, by + W / 2], [x + L, by + W], [x + L, y], [x, y], [x, by + W], [x - H, by + W / 2], [x, by]])
+    T.dimH(x, y0 - 10, L, 'L'); T.dimV(x + L + H + 10, ys[1], s, 'Slope'); T.dimV(x + L + H + 22, by, W, 'Base')
+    result.notes.push('End caps fold in from the base; add tuck tabs per converter spec.')
+  } else {
+    result.title = 'TETRAHEDRON · FOUR-FACE STRIP'
+    const e = Math.hypot(L / 2, H, W / 2) // AD = AC = BC = BD
+    const third = (p: Point, q: Point, a: number, b: number, away: Point): Point => {
+      const d = Math.hypot(q[0] - p[0], q[1] - p[1]), k = (a * a - b * b + d * d) / (2 * d), hh = Math.sqrt(Math.max(0, a * a - k * k))
+      const ux = (q[0] - p[0]) / d, uy = (q[1] - p[1]) / d, mx = p[0] + ux * k, my = p[1] + uy * k
+      const c1: Point = [mx - uy * hh, my + ux * hh], c2: Point = [mx + uy * hh, my - ux * hh]
+      return Math.hypot(c1[0] - away[0], c1[1] - away[1]) > Math.hypot(c2[0] - away[0], c2[1] - away[1]) ? c1 : c2
+    }
+    const A: Point = [0, 0], B: Point = [L, 0], D = third(A, B, e, e, [L / 2, -1])
+    const C = third(A, D, e, W, B), B2 = third(D, C, e, e, A), A2 = third(C, B2, e, L, D)
+    const raw = [A, B, D, C, B2, A2]
+    const mnx = Math.min(...raw.map(p => p[0])), mny = Math.min(...raw.map(p => p[1]))
+    const off = ([px, py]: Point): Point => [px - mnx + x0 + 14, py - mny + y0 + 14]
+    const [a, b, d, c, b2, a2] = raw.map(off)
+    T.polygonPanel('tetra-front', 'FRONT', [a, b, d], 'front').frame = { width: L * .42, height: Math.hypot(H, W / 2) * .3, cy: (a[1] + b[1]) / 2 + (d[1] - (a[1] + b[1]) / 2) * .36 }
+    T.polygonPanel('tetra-left', 'LEFT', [a, d, c]); T.polygonPanel('tetra-right', 'RIGHT', [d, c, b2]); T.polygonPanel('tetra-back', 'BACK', [c, b2, a2], infoBack ? 'info' : undefined)
+    const cx = (c[0] + a2[0]) / 2, cy = (c[1] + a2[1]) / 2, ox = cx - (b2[0] + c[0] + a2[0]) / 3, oy = cy - (b2[1] + c[1] + a2[1]) / 3, on = Math.hypot(ox, oy) || 1
+    const gx = ox / on * 10, gy = oy / on * 10
+    const glueFlap: Point[] = [c, a2, [a2[0] + gx + (c[0] - a2[0]) * .06, a2[1] + gy + (c[1] - a2[1]) * .06], [c[0] + gx + (a2[0] - c[0]) * .06, c[1] + gy + (a2[1] - c[1]) * .06]]
+    T.polygonPanel('tetra-glue', 'GLUE', glueFlap)
+    T.poly('cut', [a, b, d, b2, a2, glueFlap[2], glueFlap[3], c, a])
+    for (const [p, q] of [[a, d], [d, c], [c, b2], [c, a2]] as const) T.line('fold', p[0], p[1], q[0], q[1])
+    T.dimH(a[0], Math.max(a[1], b[1]) + 10, L, 'Base edge')
+    result.notes.push(`Edges ${mm(L)} / ${mm(W)} mm (seals) and ${mm(e)} mm (slant). Top and bottom seals are crossed at 90°.`)
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Print production layers shared by the on-screen 2D view, the vector SVG/CorelDRAW export and PDF
+// ---------------------------------------------------------------------------------------------
+
+/** Standard print allowances (mm). */
+export const PRINT_SPEC = { bleed: 3, safe: 3, cropLength: 6, cropOffset: 3 }
+
+function inside(point: Point, polygon: Point[]) {
+  let hit = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i], [xj, yj] = polygon[j]
+    if ((yi > point[1]) !== (yj > point[1]) && point[0] < (xj - xi) * (point[1] - yi) / (yj - yi || 1e-9) + xi) hit = !hit
+  }
+  return hit
+}
+const area = (pts: Point[]) => Math.abs(pts.reduce((sum, p, i) => { const q = pts[(i + 1) % pts.length]; return sum + p[0] * q[1] - q[0] * p[1] }, 0) / 2)
+
+/** Closed cut outlines that are not inside another cut outline: the outer edges of each blank. */
+export function outerCuts(layout: FlatLayout): Point[][] {
+  const closed = layout.rules.filter(r => r.layer === 'cut' && r.closed && r.points.length >= 3).map(r => r.points)
+  return closed.filter(poly => !closed.some(other => other !== poly && area(other) > area(poly) && poly.every(p => inside(p, other) || other.some(q => Math.abs(q[0] - p[0]) < .01 && Math.abs(q[1] - p[1]) < .01))))
+}
+
+/** Bounding box of every cut line and hole. */
+export function cutBounds(layout: FlatLayout) {
+  const xs: number[] = [], ys: number[] = []
+  for (const r of layout.rules) if (r.layer === 'cut') for (const [x, y] of r.points) { xs.push(x); ys.push(y) }
+  for (const h of layout.holes) { xs.push(h.x - h.radius, h.x + h.radius); ys.push(h.y - h.radius, h.y + h.radius) }
+  if (!xs.length) return { x: 0, y: 0, width: layout.width, height: layout.height }
+  const x = Math.min(...xs), y = Math.min(...ys)
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y }
+}
+
+/** Panel safe area: the panel inset by the safe margin (polygons shrink towards their centroid). */
+export function safeOutline(p: Panel, margin = PRINT_SPEC.safe): Point[] | { cx: number; cy: number; r: number } | undefined {
+  if (p.circle) return p.width / 2 > margin * 2 ? { cx: p.x + p.width / 2, cy: p.y + p.height / 2, r: p.width / 2 - margin } : undefined
+  if (p.polygon) {
+    const cx = p.polygon.reduce((s, q) => s + q[0], 0) / p.polygon.length, cy = p.polygon.reduce((s, q) => s + q[1], 0) / p.polygon.length
+    const k = Math.max(0, 1 - margin * 2 / Math.max(1, Math.min(p.width, p.height)))
+    return k > .2 ? p.polygon.map(([x, y]): Point => [cx + (x - cx) * k, cy + (y - cy) * k]) : undefined
+  }
+  if (p.width <= margin * 3 || p.height <= margin * 3) return undefined
+  return [[p.x + margin, p.y + margin], [p.x + p.width - margin, p.y + margin], [p.x + p.width - margin, p.y + p.height - margin], [p.x + margin, p.y + p.height - margin]]
+}
+
+/** Crop marks (corner trim marks outside the bleed) and registration targets around the blank. */
+export function sheetMarks(layout: FlatLayout) {
+  const b = cutBounds(layout), { bleed, cropLength: len, cropOffset } = PRINT_SPEC, o = bleed + cropOffset
+  const x0 = b.x, y0 = b.y, x1 = b.x + b.width, y1 = b.y + b.height
+  const crop: [Point, Point][] = [
+    [[x0 - o - len, y0], [x0 - o, y0]], [[x0, y0 - o - len], [x0, y0 - o]],
+    [[x1 + o, y0], [x1 + o + len, y0]], [[x1, y0 - o - len], [x1, y0 - o]],
+    [[x0 - o - len, y1], [x0 - o, y1]], [[x0, y1 + o], [x0, y1 + o + len]],
+    [[x1 + o, y1], [x1 + o + len, y1]], [[x1, y1 + o], [x1, y1 + o + len]],
+  ]
+  const r = 2.6, gap = o + len + 3.5
+  // Left and right of the blank, where they never collide with dimension labels.
+  const registration = [{ x: x0 - gap, y: (y0 + y1) / 2 }, { x: x1 + gap, y: (y0 + y1) / 2 }].map(c => ({ ...c, r }))
+  return { crop, registration, bounds: b }
+}
+
+/** CMYK colour bar shown in the footer (process + two tints) for press checks. */
+export const COLOR_BAR: { label: string; hex: string; cmyk: [number, number, number, number] }[] = [
+  { label: 'C', hex: '#00a3e0', cmyk: [100, 0, 0, 0] }, { label: 'M', hex: '#e5007e', cmyk: [0, 100, 0, 0] }, { label: 'Y', hex: '#ffed00', cmyk: [0, 0, 100, 0] }, { label: 'K', hex: '#1d1d1b', cmyk: [0, 0, 0, 100] },
+  { label: 'K50', hex: '#9d9d9c', cmyk: [0, 0, 0, 50] }, { label: 'RICH', hex: '#0b0b0b', cmyk: [60, 40, 40, 100] },
+]
+
+/** Naive RGB → CMYK (0–100) for press notes; real separations use the printer's ICC profile. */
+export function hexToCmyk(hex: string): [number, number, number, number] {
+  const n = hex.replace('#', ''), full = n.length === 3 ? n.split('').map(c => c + c).join('') : n
+  const [r, g, b] = [0, 2, 4].map(i => parseInt(full.slice(i, i + 2), 16) / 255)
+  const k = 1 - Math.max(r, g, b)
+  if (k >= 1) return [0, 0, 0, 100]
+  return [(1 - r - k) / (1 - k), (1 - g - k) / (1 - k), (1 - b - k) / (1 - k), k].map(v => Math.round(v * 100)) as [number, number, number, number]
 }

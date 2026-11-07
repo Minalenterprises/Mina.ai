@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Plus, Upload, Download, Trash2, Copy, Sparkles } from 'lucide-react'
-import { getArtwork, newPrintLayer, PRINT_STARTERS, printTile, validateArtwork } from '../lib/print-artwork'
+import { getArtwork, newPrintLayer, printTile, validateArtwork } from '../lib/print-artwork'
 import { generateArtworkImage } from '../lib/image-generation'
 import { downloadFile, readImage, safeName } from '../lib/utils'
 import { NumberField } from './NumberField'
 import type { Design, PrintArtwork, PrintLayer } from '../lib/types'
+
+const PrintLibraryPicker = lazy(() => import('./PrintLibraryPicker'))
 
 function PrintSwatch({ design }: { design: Design }) {
   const canvas = useRef<HTMLCanvasElement>(null)
@@ -27,8 +29,8 @@ export function ArtworkEditor({ design, onChange }: { design: Design; onChange: 
     catch (e) { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : 'Image generation failed.') }
     finally { if (request.current === controller) { request.current = null; setBusy(false) } }
   }
-  return <section className="artwork-editor"><div className="typography-heading"><strong>Print designs & images</strong><span>Made yours</span></div><p>Create artwork from editable motifs, your company logo, or AI illustrations. These print onto the packaging alongside its material texture.</p>
-    <div className="print-starters">{PRINT_STARTERS.map(p => <button type="button" key={p.id} className="print-starter" disabled={busy || (p.id === 'logo-repeat' && !design.logo)} onClick={() => { onChange({ artwork: { ...p.artwork, layers: p.artwork.layers.map(l => ({ ...l })) } }); setSelected(0) }}><PrintSwatch design={{ ...design, artwork: p.artwork }} /><span>{p.name}</span></button>)}</div>
+  return <section className="artwork-editor"><div className="typography-heading"><strong>Print designs & images</strong><span>Made yours</span></div><p>Start from 70 editable vector prints (florals, geometric, Islamic & girih, Mughal paisley, Japanese, Scandinavian, retro, luxury, checks, food, festive, kids) or build your own from motifs, your company logo, or AI illustrations. These print onto the packaging alongside its material texture.</p>
+    <Suspense fallback={<p className="panel-description">Loading print library…</p>}><PrintLibraryPicker design={design} disabled={busy} onApply={artwork => { onChange({ artwork }); setSelected(0) }} /></Suspense>
     <fieldset className="print-controls" disabled={busy}>
       <label className="type-check"><input type="checkbox" checked={a.enabled} onChange={e => update({ enabled: e.target.checked })} /> Show printed artwork</label>
       <div className="print-current"><PrintSwatch design={design} /><div><strong>{a.name}</strong><small>{a.layers.length} editable motifs · {a.tileSize} mm repeat</small><button className="button button-outline button-sm" type="button" onClick={async () => { try { const tile = await printTile(design, 2048); tile.toBlob(blob => { if (blob) downloadFile(blob, `${safeName(a.name)}-tile.png`) }) } catch (e) { setError(String(e)) } }}><Download size={14} /> Export tile</button></div></div>

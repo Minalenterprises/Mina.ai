@@ -95,47 +95,59 @@ function CursorStage({ label, pulse }: { label?: string; pulse: number }) {
   const chip = label || external.detail?.label || (phase === PARTS.length ? 'Polishing the details' : current.label)
   const cycleId = Math.floor(step / CYCLE)
 
+  const done = phase === PARTS.length
+  const bbox = useMemo(() => {
+    const xs = current.pts.map(p => p[0]), ys = current.pts.map(p => p[1])
+    const pad = 5
+    return { x: Math.min(...xs) - pad, y: Math.min(...ys) - pad, w: Math.max(...xs) - Math.min(...xs) + pad * 2, h: Math.max(...ys) - Math.min(...ys) + pad * 2 }
+  }, [current])
+  const dims = ['240 × 90', '240 × 40', '90 × 40', '90 × 40', '240 × 40', '244 × 94'][Math.min(phase, PARTS.length - 1)]
+  const shade = (id: string) => id === 'lid' || id === 'base' ? 'var(--cur-top)' : id === 'left' || id === 'front' ? 'var(--cur-side-a)' : 'var(--cur-side-b)'
+
   return (
     <motion.div ref={host} className="ai-cursor-stage" aria-hidden="true" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: .4 } }}>
-      <div className="ai-cursor-scrim" />
+      <svg className="ai-cursor-grid" width="100%" height="100%"><defs><pattern id="aiDots" width="18" height="18" patternUnits="userSpaceOnUse"><rect x="8" y="8" width="2" height="2" fill="var(--cur-dot)" /></pattern></defs><rect width="100%" height="100%" fill="url(#aiDots)" /></svg>
       {side > 0 && (
         <svg className="ai-ghost-box" viewBox="0 0 200 200" style={{ left: ox, top: oy, width: side, height: side }}>
-          <defs>
-            <linearGradient id="ghostFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ff8a3d" stopOpacity=".28" /><stop offset="1" stopColor="#8b5cf6" stopOpacity=".12" /></linearGradient>
-            <linearGradient id="ghostStroke" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ffb36b" /><stop offset=".5" stopColor="#ff6b00" /><stop offset="1" stopColor="#ff4fa3" /></linearGradient>
-          </defs>
           <g key={cycleId}>
             {PARTS.slice(0, reduce ? PARTS.length : visible).map(part => (
               <motion.polygon
                 key={part.id}
                 points={poly(part.pts)}
-                fill="url(#ghostFill)"
-                stroke="url(#ghostStroke)"
-                strokeWidth={1.4}
+                fill={shade(part.id)}
+                stroke="var(--cur-ink)"
+                strokeWidth={1.1}
                 strokeLinejoin="round"
-                initial={reduce ? false : { opacity: 0, pathLength: 0, x: part.from[0], y: part.from[1] }}
-                animate={{ opacity: 1, pathLength: 1, x: 0, y: 0 }}
-                transition={{ type: 'spring', stiffness: 170, damping: 17, pathLength: { duration: .55, ease: 'easeOut' } }}
+                initial={reduce ? false : { opacity: 0, x: part.from[0], y: part.from[1] }}
+                animate={{ opacity: part.id === 'lid' ? .96 : 1, x: 0, y: 0 }}
+                transition={{ type: 'spring', stiffness: 210, damping: 20 }}
               />
             ))}
           </g>
-          {phase === PARTS.length && !reduce && <motion.polygon key={`shine-${cycleId}`} points="-40,0 0,0 -40,200 -80,200" fill="rgba(255,255,255,.16)" initial={{ x: 0 }} animate={{ x: 320 }} transition={{ duration: .9, ease: 'easeInOut' }} />}
+          {!reduce && !done && (
+            <motion.g key={`sel-${step}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: .35, duration: .2 }}>
+              <rect x={bbox.x} y={bbox.y} width={bbox.w} height={bbox.h} fill="none" stroke="var(--cur-blue)" strokeWidth={.9} />
+              {[[bbox.x, bbox.y], [bbox.x + bbox.w, bbox.y], [bbox.x, bbox.y + bbox.h], [bbox.x + bbox.w, bbox.y + bbox.h]].map(([hx, hy], i) => <rect key={i} x={hx - 2.4} y={hy - 2.4} width={4.8} height={4.8} fill="var(--cur-surface)" stroke="var(--cur-blue)" strokeWidth={.9} />)}
+              <g transform={`translate(${bbox.x + bbox.w / 2} ${bbox.y + bbox.h + 10})`}><rect x={-19} y={-6} width={38} height={12} rx={3} fill="var(--cur-blue)" /><text x={0} y={2.6} textAnchor="middle" fontSize={7} fontWeight={700} fill="#fff" fontFamily="Plus Jakarta Sans, system-ui">{dims}</text></g>
+            </motion.g>
+          )}
+          {done && !reduce && <motion.g key={`done-${cycleId}`} initial={{ opacity: 0, scale: .6 }} animate={{ opacity: 1, scale: 1 }} style={{ originX: '160px', originY: '40px' }}><rect x={140} y={30} width={44} height={16} rx={8} fill="var(--cur-ink)" /><text x={162} y={41} textAnchor="middle" fontSize={7.5} fontWeight={700} fill="var(--cur-surface)" fontFamily="Plus Jakarta Sans, system-ui">✓ Ready</text></motion.g>}
         </svg>
       )}
 
       {!reduce && side > 0 && (
-        <motion.div className="ai-cursor" initial={{ x: box.w * 0.15, y: box.h * 0.85, opacity: 0 }} animate={{ x: target.x, y: target.y, opacity: 1 }} transition={{ type: 'spring', stiffness: 60, damping: 14, mass: .9 }}>
+        <motion.div className="ai-cursor" initial={{ x: box.w * 0.15, y: box.h * 0.85, opacity: 0 }} animate={{ x: target.x, y: target.y, opacity: 1 }} transition={{ type: 'spring', stiffness: 70, damping: 15, mass: .8 }}>
           <AnimatePresence>
-            <motion.span key={`ripple-${step}`} className="ai-cursor-ripple" initial={{ scale: .2, opacity: .9 }} animate={{ scale: 2.6, opacity: 0 }} transition={{ delay: .62, duration: .6, ease: 'easeOut' }} />
+            <motion.span key={`ripple-${step}`} className="ai-cursor-ripple" initial={{ scale: .3, opacity: .9 }} animate={{ scale: 2.2, opacity: 0 }} transition={{ delay: .62, duration: .55, ease: 'easeOut' }} />
           </AnimatePresence>
-          <motion.svg className="ai-cursor-arrow" width="30" height="30" viewBox="0 0 24 24" key={`press-${step}`} animate={{ scale: [1, 1, .78, 1] }} transition={{ duration: .9, times: [0, .66, .74, .9] }}>
-            <defs><linearGradient id="cursorGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff3e8" /><stop offset="1" stopColor="#ffc08f" /></linearGradient></defs>
-            <path d="M4.2 2.6 19.6 10.3c.8.4.7 1.6-.2 1.8l-6.1 1.5-2.6 5.8c-.4.8-1.6.7-1.8-.2L3 3.9c-.2-.8.5-1.5 1.2-1.3Z" fill="url(#cursorGrad)" stroke="#ff6b00" strokeWidth="1.3" strokeLinejoin="round" />
+          <motion.svg className="ai-cursor-arrow" width="22" height="22" viewBox="0 0 22 22" key={`press-${step}`} animate={{ scale: [1, 1, .82, 1] }} transition={{ duration: .9, times: [0, .66, .74, .9] }}>
+            <path d="M2 1.5 L19.5 9.2 L11.6 11.4 L8.3 19.6 Z" fill="var(--cur-blue)" stroke="#fff" strokeWidth="1.6" strokeLinejoin="round" />
           </motion.svg>
-          <span className="ai-cursor-chip"><span className="ai-cursor-chip-dot" />{chip}</span>
+          <span className="ai-cursor-chip"><b>minal</b><AnimatePresence mode="wait"><motion.span key={chip} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: .18 }}>{chip}</motion.span></AnimatePresence></span>
         </motion.div>
       )}
-      {reduce && <span className="ai-cursor-chip ai-cursor-chip-static"><span className="ai-cursor-chip-dot" />{chip}</span>}
+      <div className="ai-cursor-progress">{PARTS.map((part, i) => <i key={part.id} className={i < visible ? 'on' : ''} />)}<span>{done ? 'Ready' : `Step ${phase + 1} of ${PARTS.length}`}</span></div>
+      {reduce && <span className="ai-cursor-chip ai-cursor-chip-static"><b>minal</b>{chip}</span>}
     </motion.div>
   )
 }

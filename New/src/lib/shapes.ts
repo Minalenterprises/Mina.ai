@@ -9,6 +9,8 @@ export const SHAPE_IDS = [
   'rigid-box', 'carton', 'bag', 'canister', 'hexagon', 'drawer', 'window', 'divider',
   'octagon', 'prism', 'pillow', 'pyramid', 'gable', 'mailer', 'tube', 'bottle', 'jar',
   'pouch', 'sachet', 'tray', 'sleeve', 'display', 'lathe', 'extrude',
+  'snap-lock', 'crash-lock', 'reverse-tuck', 'telescope', 'book-box', 'cake-box', 'wine-box', 'briefcase',
+  'hat-box', 'cone', 'heart', 'triangle', 'tetra',
 ] as const
 export type ShapeId = typeof SHAPE_IDS[number]
 
@@ -50,6 +52,19 @@ export const SHAPES: ShapeInfo[] = [
   { id: 'bottle', name: 'Bottle', category: 'Canister', description: 'Bottle with shoulder, neck and screw cap; wrap-around label. Use material clear/glass/plastic.', dimensions: { length: 70, width: 70, height: 220 }, lid: true, round: true, params: ['neckRatio', 'shoulder', 'capHeight'] },
   { id: 'jar', name: 'Jar', category: 'Canister', description: 'Wide-mouth jar with screw lid; wrap label.', dimensions: { length: 90, width: 90, height: 100 }, lid: true, round: true, params: ['capHeight'] },
   { id: 'lathe', name: 'Custom revolved shape', category: 'Canister', description: 'Arbitrary round object from shapeParams.profile: [radius 0–1, height 0–1] points bottom→top, revolved around the vertical axis (vases, cups, bottles, cosmetics).', dimensions: { length: 100, width: 100, height: 160 }, lid: false, round: true, params: ['profile'] },
+  { id: 'snap-lock', name: 'Snap-lock bottom carton (1-2-3)', category: 'Carton', description: 'Tuck-top carton with a 1-2-3 snap-lock bottom that holds heavier products without glue.', dimensions: { length: 80, width: 60, height: 160 }, lid: true },
+  { id: 'crash-lock', name: 'Crash-lock (auto) bottom carton', category: 'Carton', description: 'Tuck-top carton with a pre-glued crash-lock bottom that pops open square in one motion.', dimensions: { length: 120, width: 80, height: 160 }, lid: true },
+  { id: 'reverse-tuck', name: 'Reverse tuck end carton', category: 'Carton', description: 'Top tuck on the back panel and bottom tuck on the front panel; classic cosmetic / tube box.', dimensions: { length: 40, width: 40, height: 150 }, lid: true },
+  { id: 'telescope', name: 'Full telescope lid & base', category: 'Box', description: 'Two-piece box whose deep lid covers almost the whole base (shoe box, apparel, premium gift).', dimensions: { length: 300, width: 200, height: 110 }, lid: true },
+  { id: 'book-box', name: 'Book-style magnetic box', category: 'Box', description: 'Rigid tray in a hard cover case that opens like a book from the spine, with a magnetic catch.', dimensions: { length: 220, width: 160, height: 60 }, lid: true },
+  { id: 'cake-box', name: 'Cake box with window', category: 'Box', description: 'One-piece bakery box: hinged lid with a clear film window and front tuck.', dimensions: { length: 250, width: 250, height: 120 }, lid: true },
+  { id: 'wine-box', name: 'Wine carton with neck insert', category: 'Carton', description: 'Tall tuck-end bottle carton with a separate die-cut neck insert that holds the bottle upright.', dimensions: { length: 95, width: 95, height: 350 }, lid: true },
+  { id: 'briefcase', name: 'Briefcase handle box', category: 'Carton', description: 'Carry carton whose two top panels end in interlocking handle plates (bakery, toys, gift sets).', dimensions: { length: 240, width: 100, height: 220 }, lid: true },
+  { id: 'hat-box', name: 'Round box with lid (hat box)', category: 'Canister', description: 'Wide round rigid box with a deep lift-off lid (hats, flowers, candles, sweets).', dimensions: { length: 200, width: 200, height: 160 }, lid: true, round: true, params: ['capHeight'] },
+  { id: 'cone', name: 'Cone sleeve', category: 'Canister', description: 'Open conical sleeve (flowers, popcorn, ice cream, sweets); unfolds to a fan.', dimensions: { length: 120, width: 120, height: 200 }, lid: false, round: true },
+  { id: 'heart', name: 'Heart box', category: 'Box', description: 'Heart-shaped rigid box with lift-off lid; shapeParams.footprint can reshape it.', dimensions: { length: 180, width: 170, height: 70 }, lid: true, params: ['footprint', 'taper'] },
+  { id: 'triangle', name: 'Triangular prism (Toblerone)', category: 'Carton', description: 'Long triangular carton: length is the long axis, width the triangle base, height the apex. End flap opens.', dimensions: { length: 220, width: 60, height: 55 }, lid: true },
+  { id: 'tetra', name: 'Tetrahedron pack', category: 'Carton', description: 'Four-faced tetra-style pack with crossed top and bottom seals (milk, sweets, novelty).', dimensions: { length: 120, width: 120, height: 110 }, lid: false },
   { id: 'extrude', name: 'Custom extruded shape', category: 'Box', description: 'Arbitrary footprint from shapeParams.footprint: [x, z] points in -1..1 (heart, star, shield, arch…) extruded to height, with optional lid and taper.', dimensions: { length: 160, width: 160, height: 80 }, lid: true, params: ['footprint', 'taper'] },
 ]
 
@@ -133,7 +148,7 @@ export function validateShapeParams(value: unknown): ShapeParams {
 /** Normalised footprint polygon (x right, z toward the viewer), scaled later to L × W. */
 export function shapeFootprint(design: Design): [number, number][] {
   const shape = resolveShape(design), p = getShapeParams(design)
-  if (shape === 'extrude') return p.footprint && p.footprint.length >= 3 ? p.footprint : DEFAULT_FOOTPRINT
+  if (shape === 'extrude' || shape === 'heart') return p.footprint && p.footprint.length >= 3 ? p.footprint : DEFAULT_FOOTPRINT
   const sides = shape === 'hexagon' ? 6 : shape === 'octagon' ? 8 : p.sides
   // A flat face points to the front (+z) so the label sits on a real panel.
   return Array.from({ length: sides }, (_, i): [number, number] => {
@@ -157,6 +172,13 @@ export function roundLayout(design: Design): RoundLayout {
   if (shape === 'canister') {
     out.capH = Math.max(.07 / scale, Math.min(H * .14, .28 / scale))
     out.band = [H * .14, H - (design.openTop ? 0 : out.capH) - H * .04]
+  } else if (shape === 'hat-box') {
+    out.capH = p.capHeight || H * .26
+    out.band = [H * .1, H - (design.openTop ? 0 : out.capH * .65) - H * .05]
+  } else if (shape === 'cone') {
+    // Tip at the bottom: radius grows linearly to R at the rim. The label band sits on the upper half.
+    out.band = [H * .5, H * .9]
+    out.labelR = R * .7
   } else if (shape === 'tube') {
     out.capH = p.capHeight || H * .2
     out.endH = Math.min(H * .06, out.capH * .5)

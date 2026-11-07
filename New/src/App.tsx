@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { StoreProvider } from './lib/store'
 import { SupportChat } from './components/SupportChat'
 import { LoadingScreen, RouteLoader } from './components/LoadingScreen'
+import { PixelSky } from './components/PixelSky'
 
 // Route-level code splitting: the 3D studio (three.js) never loads on Home/Projects.
 const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })))
@@ -27,7 +28,7 @@ function ScrollManager() {
 }
 
 function NotFound() {
-  return <main className="not-found"><span className="eyebrow">A LITTLE DETOUR</span><h1>Let's get back to creating.</h1><p>This page hasn't been imagined yet.</p><Link className="button button-lime" to="/"><ArrowLeft size={18} /> Back to minal</Link></main>
+  return <main className="not-found"><PixelSky skyline /><div className="not-found-card"><span className="eyebrow">ERROR 404 · A LITTLE DETOUR</span><h1>This page hasn’t<br /><em>been imagined yet.</em></h1><p>Move your mouse, the sky is still here. Or head back and make something.</p><div className="not-found-actions"><Link className="button button-lime" to="/"><ArrowLeft size={18} /> Back home</Link><Link className="button button-outline" to="/studio">Open the studio</Link></div></div></main>
 }
 
 function AnimatedRoutes() {

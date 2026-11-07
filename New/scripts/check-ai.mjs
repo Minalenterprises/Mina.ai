@@ -3,12 +3,13 @@ import { readFile, access } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { build } from 'esbuild'
 
-const bundle = await build({ stdin: { contents: `export * from './src/lib/gemini'; export * from './src/lib/design-tools'; export * from './src/lib/typography'; export * from './src/lib/fonts'; export * from './src/lib/types'; export * from './src/lib/ai-settings'; export * from './src/lib/textures'; export * from './src/lib/product-info'; export * from './src/lib/surface-validation'; export * from './src/lib/dieline-layout'; export * from './src/lib/dxf-export'; export * from './src/lib/artwork-frame'; export * from './src/lib/print-artwork'; export * from './src/lib/image-generation'; export * from './src/lib/shapes'; export * from './src/lib/materials-catalog'`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node', format: 'esm', plugins: [{ name: 'runtime-skill', setup(builder) { builder.onResolve({ filter: /SKILL\.md\?raw$/ }, args => ({ path: resolve(args.resolveDir, args.path.replace('?raw', '')), namespace: 'skill' })); builder.onLoad({ filter: /.*/, namespace: 'skill' }, async args => ({ contents: await readFile(args.path, 'utf8'), loader: 'text' })) } }] })
+const bundle = await build({ stdin: { contents: `export * from './src/lib/gemini'; export * from './src/lib/design-tools'; export * from './src/lib/typography'; export * from './src/lib/fonts'; export * from './src/lib/types'; export * from './src/lib/ai-settings'; export * from './src/lib/textures'; export * from './src/lib/product-info'; export * from './src/lib/surface-validation'; export * from './src/lib/dieline-layout'; export * from './src/lib/dxf-export'; export * from './src/lib/artwork-frame'; export * from './src/lib/print-artwork'; export * from './src/lib/image-generation'; export * from './src/lib/shapes'; export * from './src/lib/materials-catalog'; export * from './src/lib/template-library'; export * from './src/lib/print-library'`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node', format: 'esm', plugins: [{ name: 'runtime-skill', setup(builder) { builder.onResolve({ filter: /SKILL\.md\?raw$/ }, args => ({ path: resolve(args.resolveDir, args.path.replace('?raw', '')), namespace: 'skill' })); builder.onLoad({ filter: /.*/, namespace: 'skill' }, async args => ({ contents: await readFile(args.path, 'utf8'), loader: 'text' })) } }] })
 const api = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
 const initial = api.newDesign('Typography regression test')
 const preview = { camera: 'front', openBox: false, autoRotate: false }
-assert.equal(api.TEXTURES.length, 28)
-assert.equal(api.DESIGN_TOOL_DECLARATIONS.length, 19)
+assert.equal(api.TEXTURES.length, 62)
+assert.equal(new Set(api.TEXTURES.map(t => t.id)).size, api.TEXTURES.length)
+assert.equal(api.DESIGN_TOOL_DECLARATIONS.length, 21)
 assert.throws(() => api.validateSurface({ texture: 'Imaginary Material' }))
 assert.throws(() => api.validateSurface({ scale: 0 }))
 assert.throws(() => api.validateProductInfo({ barcode: '4006381333932' }))
@@ -65,6 +66,30 @@ for (const template of api.templates) {
     assert.ok(area.width > 0 && area.height > 0)
   }
 }
+// Template library + style presets: unique ids, valid shapes, and patches that keep printed copy.
+assert.ok(api.templates.length >= 70)
+assert.equal(new Set(api.templates.map(t => t.id)).size, api.templates.length)
+assert.ok(api.STYLE_PRESETS.length >= 12)
+for (const template of api.templates) {
+  if (template.structure && template.structure !== 'standard') assert.ok(api.isShapeId(template.structure), `${template.id} uses a real shape`)
+  if (template.surface?.texture) api.validateSurface({ texture: template.surface.texture })
+  if (template.typography?.fontFamily) assert.ok(api.fontExists(template.typography.fontFamily), `${template.id} font`)
+}
+for (const style of api.STYLE_PRESETS) {
+  assert.ok(api.fontExists(style.typography.fontFamily), `${style.id} font`)
+  if (style.surface.texture) api.validateSurface({ texture: style.surface.texture })
+  const styled = await api.executeDesignTool('apply_style', { id: style.id }, { ...initial, typography: { text: 'Keep me' } }, preview)
+  assert.equal(styled.design.typography.text, 'Keep me')
+  assert.deepEqual(styled.design.dimensions, initial.dimensions)
+  assert.equal(styled.design.color, style.color)
+}
+const listed = await api.executeDesignTool('list_templates', { query: 'bakery' }, initial, preview)
+assert.ok(listed.result.length >= 3)
+const crash = await api.executeDesignTool('apply_template', { id: 'cereal-crash-lock' }, initial, preview)
+assert.equal(api.resolveShape(crash.design), 'crash-lock')
+const urdu = await api.executeDesignTool('apply_template', { id: 'mithai-box' }, { ...initial, typography: undefined }, preview)
+assert.equal(urdu.design.surface.texture, 'girih')
+await assert.rejects(() => api.executeDesignTool('apply_style', { id: 'nope' }, initial, preview))
 const dxf = await api.exportToDxf(initial).text()
 assert.ok(dxf.includes('$INSUNITS\\r\\n70\\r\\n4'.replaceAll('\\r', '\r').replaceAll('\\n', '\n')))
 assert.ok(dxf.includes('DIECUT') && dxf.includes('CREASE') && dxf.includes('240'))
@@ -124,6 +149,20 @@ const branded = await api.executeDesignTool('apply_print_design', { id: 'logo-re
 assert.equal(branded.design.logo, logo)
 assert.equal(branded.design.artwork.layers[0].shape, 'logo')
 for (const starter of api.PRINT_STARTERS) api.validateArtwork(starter.artwork)
+// Extended print library: 60+ unique, valid, fully vector designs that apply and stay editable.
+assert.ok(api.PRINT_LIBRARY.length >= 60)
+assert.equal(new Set(api.PRINT_LIBRARY.map(p => p.id)).size, api.PRINT_LIBRARY.length)
+assert.ok(api.PRINT_CATEGORIES.length >= 14)
+for (const print of api.PRINT_LIBRARY) {
+  api.validateArtwork(print.artwork)
+  assert.ok(print.artwork.layers.length > 0 && print.artwork.layers.length <= 80, `${print.id} layer count`)
+  assert.ok(print.artwork.layers.every(l => l.shape !== 'image'), `${print.id} stays vector`)
+}
+const girih = await api.executeDesignTool('list_print_designs', { category: 'Islamic & girih' }, initial, preview)
+assert.ok(girih.result.length >= 4)
+const appliedPrint = await api.executeDesignTool('apply_print_design', { id: 'seigaiha' }, initial, preview)
+assert.equal(appliedPrint.design.artwork.name, 'Seigaiha waves')
+assert.notEqual(appliedPrint.design.artwork.layers, api.findPrint('seigaiha').artwork.layers)
 assert.equal(api.validateTypography({ background: '#ffffff', blockScale: .4 }).blockScale, .4)
 assert.throws(() => api.validateTypography({ blockScale: 0 }))
 const imageRequests = []
