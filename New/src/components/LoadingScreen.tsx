@@ -76,7 +76,7 @@ export function LoadingScreen({ variant = 'fullscreen', label = 'Preparing your 
       aria-label={label}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0, scale: inline ? 1 : 1.03, filter: 'blur(6px)' }}
+      exit={{ opacity: 0 }}
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
     >
       <div className="loading-core"><PixelMark size={inline ? 60 : 96} /></div>
