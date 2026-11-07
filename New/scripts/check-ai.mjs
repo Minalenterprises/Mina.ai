@@ -3,7 +3,7 @@ import { readFile, access } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { build } from 'esbuild'
 
-const bundle = await build({ stdin: { contents: `export * from './src/lib/gemini'; export * from './src/lib/design-tools'; export * from './src/lib/typography'; export * from './src/lib/fonts'; export * from './src/lib/types'; export * from './src/lib/ai-settings'; export * from './src/lib/textures'; export * from './src/lib/product-info'; export * from './src/lib/surface-validation'; export * from './src/lib/dieline-layout'; export * from './src/lib/dxf-export'; export * from './src/lib/artwork-frame'; export * from './src/lib/print-artwork'; export * from './src/lib/image-generation'; export * from './src/lib/shapes'; export * from './src/lib/materials-catalog'; export * from './src/lib/template-library'`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node', format: 'esm', plugins: [{ name: 'runtime-skill', setup(builder) { builder.onResolve({ filter: /SKILL\.md\?raw$/ }, args => ({ path: resolve(args.resolveDir, args.path.replace('?raw', '')), namespace: 'skill' })); builder.onLoad({ filter: /.*/, namespace: 'skill' }, async args => ({ contents: await readFile(args.path, 'utf8'), loader: 'text' })) } }] })
+const bundle = await build({ stdin: { contents: `export * from './src/lib/gemini'; export * from './src/lib/design-tools'; export * from './src/lib/typography'; export * from './src/lib/fonts'; export * from './src/lib/types'; export * from './src/lib/ai-settings'; export * from './src/lib/textures'; export * from './src/lib/product-info'; export * from './src/lib/surface-validation'; export * from './src/lib/dieline-layout'; export * from './src/lib/dxf-export'; export * from './src/lib/artwork-frame'; export * from './src/lib/print-artwork'; export * from './src/lib/image-generation'; export * from './src/lib/shapes'; export * from './src/lib/materials-catalog'; export * from './src/lib/template-library'; export * from './src/lib/print-library'`, resolveDir: process.cwd() }, bundle: true, write: false, platform: 'node', format: 'esm', plugins: [{ name: 'runtime-skill', setup(builder) { builder.onResolve({ filter: /SKILL\.md\?raw$/ }, args => ({ path: resolve(args.resolveDir, args.path.replace('?raw', '')), namespace: 'skill' })); builder.onLoad({ filter: /.*/, namespace: 'skill' }, async args => ({ contents: await readFile(args.path, 'utf8'), loader: 'text' })) } }] })
 const api = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
 const initial = api.newDesign('Typography regression test')
 const preview = { camera: 'front', openBox: false, autoRotate: false }
@@ -149,6 +149,20 @@ const branded = await api.executeDesignTool('apply_print_design', { id: 'logo-re
 assert.equal(branded.design.logo, logo)
 assert.equal(branded.design.artwork.layers[0].shape, 'logo')
 for (const starter of api.PRINT_STARTERS) api.validateArtwork(starter.artwork)
+// Extended print library: 60+ unique, valid, fully vector designs that apply and stay editable.
+assert.ok(api.PRINT_LIBRARY.length >= 60)
+assert.equal(new Set(api.PRINT_LIBRARY.map(p => p.id)).size, api.PRINT_LIBRARY.length)
+assert.ok(api.PRINT_CATEGORIES.length >= 14)
+for (const print of api.PRINT_LIBRARY) {
+  api.validateArtwork(print.artwork)
+  assert.ok(print.artwork.layers.length > 0 && print.artwork.layers.length <= 80, `${print.id} layer count`)
+  assert.ok(print.artwork.layers.every(l => l.shape !== 'image'), `${print.id} stays vector`)
+}
+const girih = await api.executeDesignTool('list_print_designs', { category: 'Islamic & girih' }, initial, preview)
+assert.ok(girih.result.length >= 4)
+const appliedPrint = await api.executeDesignTool('apply_print_design', { id: 'seigaiha' }, initial, preview)
+assert.equal(appliedPrint.design.artwork.name, 'Seigaiha waves')
+assert.notEqual(appliedPrint.design.artwork.layers, api.findPrint('seigaiha').artwork.layers)
 assert.equal(api.validateTypography({ background: '#ffffff', blockScale: .4 }).blockScale, .4)
 assert.throws(() => api.validateTypography({ blockScale: 0 }))
 const imageRequests = []

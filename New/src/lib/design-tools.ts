@@ -3,7 +3,7 @@ import { contrastRatio, getTypography, printedText, textColor } from './typograp
 import { TEXTURES, getSurface } from './textures'
 import { getProductInfo } from './product-info'
 import { validateSurface, validateProductInfo } from './surface-validation'
-import { getArtwork, PRINT_STARTERS, validateArtwork } from './print-artwork'
+import { getArtwork, validateArtwork } from './print-artwork'
 import type { Design, MaterialPreset, ModelPart, PreviewSettings, Structure, Typography } from './types'
 import { isShapeId, resolveShape, shapeInfo, shapePatch, SHAPE_IDS, SHAPES, validateShapeParams, type ShapeId } from './shapes'
 import { MATERIAL_PRESETS, resolveMaterialPreset } from './materials-catalog'
@@ -164,7 +164,7 @@ const typographySchema = object({ background: string('Hex or none: solid brand p
 const partSchema = object({ name: string(), shape: choice(['box', 'cylinder', 'sphere']), size: vectorSchema, position: vectorSchema, rotation: vectorSchema, color: string(), material: choice(['paper', 'metal', 'glass']) }, ['name', 'shape', 'size', 'position', 'color', 'material'])
 const artworkSchema = object({ enabled: { type: 'BOOLEAN' }, name: string(), background: string('Six-digit hex or auto'), tileSize: numeric('10–600 mm; square repeat size'), rotation: numeric('-180–180 degrees'), layers: { type: 'ARRAY', description: 'Replace all motif layers, maximum 80. Positions and sizes in tile percent. Paths centered in -50 to 50 coordinates. Omitted layer fields use defaults.', items: object({ name: string(), shape: choice(['ellipse', 'rect', 'leaf', 'petal', 'path', 'logo', 'image']), x: numeric('-100–200'), y: numeric('-100–200'), width: numeric('0.1–200'), height: numeric('0.1–200'), rotation: numeric('-360–360'), fill: string('Six-digit hex or none'), stroke: string('Six-digit hex or none'), strokeWidth: numeric('0–20 tile percent'), opacity: numeric('0–1'), path: string('Safe SVG path commands only, max 4000 characters; arbitrary custom motifs.') }, ['shape']) } })
 export const DESIGN_TOOL_DECLARATIONS = [
-  { name: 'list_print_designs', description: 'Explore editable floral, botanical, geometric, art deco, terrazzo and logo repeat starting points. Invent original motifs with update_artwork; these are optional starters.', parameters: object({ query: string() }) },
+  { name: 'list_print_designs', description: 'Explore 70 editable vector print designs by category (Floral, Botanical & eco, Geometric, Islamic & girih, Mughal & paisley, Japanese, Scandinavian, Memphis & retro, Luxury, Stripes & checks, Polka & halftone, Abstract organic, Food & drink, Festive, Kids, Logo repeats) or keyword. Returns ids, motif counts and colours. Apply one, then recolour or rescale with update_artwork; or invent original motifs.', parameters: object({ query: string(), category: string() }) },
   { name: 'apply_print_design', description: 'Apply an editable printed design by starter ID. Company logo repeat requires an uploaded logo.', parameters: object({ id: string() }, ['id']) },
   { name: 'update_artwork', description: 'Create original printed patterns with editable motif layers, custom vector paths, exact uploaded logos, or generated images. Preserve omitted settings. This is printed graphic artwork, separate from material texture. Read existing layers before changing them.', parameters: artworkSchema },
   { name: 'generate_artwork_image', description: 'Generate an actual original raster illustration or seamless texture using Google image AI. Can edit existing image or use uploaded reference. Applies returned image under existing motifs/logo layers. Requires image model access/quota. Exact logos and text should remain separate editable layers.', parameters: object({ prompt: string('Detailed visual instruction, max 4000 characters'), seamless: { type: 'BOOLEAN' }, editCurrent: { type: 'BOOLEAN' }, useReference: { type: 'BOOLEAN' } }, ['prompt']) },
@@ -205,11 +205,16 @@ export async function executeDesignTool(name: string, args: unknown, design: Des
   }
   if (name === 'list_shapes') return { design, preview, result: SHAPES.filter(shape => !input.query || `${shape.id} ${shape.name} ${shape.description}`.toLowerCase().includes(String(input.query).toLowerCase())).map(({ id, name, description, dimensions, lid, round, params }) => ({ id, name, description, defaultDimensions: dimensions, hasLid: lid, round: !!round, params: params || [] })), summary: 'Explored packaging shapes', fields: [] }
   if (name === 'list_textures') return { design, preview, result: TEXTURES.filter(texture => !input.query || `${texture.name} ${texture.category}`.toLowerCase().includes(String(input.query).toLowerCase())), summary: 'Explored material textures', fields: [] }
-  if (name === 'list_print_designs') return { design, preview, result: PRINT_STARTERS.filter(p => !input.query || p.name.toLowerCase().includes(String(input.query).toLowerCase())), summary: 'Explored editable print designs', fields: [] }
+  if (name === 'list_print_designs') {
+    const { searchPrints } = await import('./print-library')
+    const found = searchPrints(String(input.query || ''), typeof input.category === 'string' && input.category ? input.category : 'All')
+    return { design, preview, result: found.map(p => ({ id: p.id, name: p.name, category: p.category, tags: p.tags || '', tileSize: p.artwork.tileSize, background: p.artwork.background, motifs: p.artwork.layers.length, colors: [...new Set(p.artwork.layers.flatMap(l => [l.fill, l.stroke]).filter(c => c !== 'none'))], needsLogo: p.artwork.layers.some(l => l.shape === 'logo') })), summary: 'Explored editable print designs', fields: [] }
+  }
   if (name === 'apply_print_design') {
-    const starter = PRINT_STARTERS.find(p => p.id === input.id)
+    const { findPrint, clonePrint } = await import('./print-library')
+    const starter = typeof input.id === 'string' ? findPrint(input.id) : undefined
     if (!starter) throw new Error('Unknown print design. Call list_print_designs first.')
-    patch = { artwork: { ...starter.artwork, layers: starter.artwork.layers.map(l => ({ ...l })) } }
+    patch = { artwork: clonePrint(starter) }
   }
   else if (name === 'update_artwork') patch = { artwork: validateArtwork(input) }
   else if (name === 'update_surface') patch = { surface: validateSurface(input) }
