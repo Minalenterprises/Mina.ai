@@ -2110,3 +2110,46 @@ select option { background: var(--surface) }
 .manifesto-section > div { border: 0 !important; background: transparent !important }
 .pixel-mark { gap: 3px }
 .pixel-mark i { border-radius: 1px }
+
+/* ── Composer (hero prompt) ─────────────────────────────────────────── */
+.composer { position: relative; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 18px 14px 12px 20px; box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 2px 4px rgba(10,13,20,.04), 0 24px 60px -24px rgba(11,92,240,.35); transition: border-color .2s, box-shadow .25s, transform .25s }
+html[data-theme='dark'] .composer { box-shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 24px 60px -24px rgba(0,0,0,.8) }
+.composer.is-focused { border-color: var(--blue); box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue) 18%, transparent), 0 24px 60px -24px rgba(11,92,240,.45); transform: translateY(-2px) }
+.composer-field { position: relative; min-height: 52px }
+.composer textarea { width: 100%; resize: none; border: 0; outline: 0; background: transparent; color: var(--ink); font: 500 17px/1.5 'Plus Jakarta Sans', system-ui, sans-serif; padding: 0 4px 0 0; min-height: 52px; display: block }
+.composer textarea:focus-visible { outline: 0 }
+.composer-placeholder { position: absolute; left: 0; top: 0; pointer-events: none; color: var(--ink-mute); font: 500 17px/1.5 'Plus Jakarta Sans', system-ui, sans-serif }
+.composer-caret { display: inline-block; width: 2px; height: 1.1em; margin-left: 2px; vertical-align: -3px; background: var(--blue); animation: caret 1s steps(1) infinite }
+@keyframes caret { 50% { opacity: 0 } }
+.composer-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px }
+.composer-tools { display: flex; align-items: center; gap: 6px; min-width: 0 }
+.composer-chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-soft); font-size: 13px; font-weight: 600; transition: .15s }
+.composer-chip:hover { color: var(--ink); border-color: color-mix(in srgb, var(--ink) 30%, transparent) }
+.composer-icon { width: 34px; padding: 0; justify-content: center }
+.composer-hint { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; font-size: 12px; color: var(--ink-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.composer-hint svg { color: var(--blue) }
+.composer-type { position: relative }
+.composer-menu { position: absolute; left: 0; top: calc(100% + 6px); z-index: 20; min-width: 150px; padding: 5px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--soft-shadow); display: grid }
+.composer-menu button { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--ink-soft); text-align: left }
+.composer-menu button:hover, .composer-menu button.active { background: var(--surface-2); color: var(--ink) }
+.composer-send { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-3); color: var(--ink-mute); transition: background .2s, color .2s }
+.composer-send[data-ready='true'] { background: var(--blue); color: #fff; box-shadow: 0 8px 18px -8px var(--blue) }
+.composer-send[data-ready='true']:hover { filter: brightness(1.08) }
+@media (max-width: 560px) { .composer-hint { display: none } }
+
+/* Hero polish */
+.sky-hero-form { width: min(640px, 100%) }
+.sky-hero .idea-suggestions { margin-top: 16px }
+.sky-hero .idea-suggestions button { background: color-mix(in srgb, var(--surface) 80%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px) }
+.sky-hero h1 em { display: inline-block }
+.sky-hero-inner > * { will-change: transform }
+
+/* 404 */
+.not-found { position: relative; min-height: 100svh; display: grid; place-items: center; overflow: hidden; isolation: isolate; padding: 24px; background: var(--bg) }
+.not-found-card { text-align: center; max-width: 640px; display: flex; flex-direction: column; align-items: center }
+.not-found h1 { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: clamp(48px, 7vw, 96px); line-height: .95; letter-spacing: -.02em; margin: 18px 0 0; color: var(--ink) }
+.not-found h1 em { color: var(--blue) }
+.not-found p { color: var(--ink-soft); margin: 22px 0 30px; max-width: 420px; font-size: 16px; line-height: 1.6 }
+.not-found-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center }
+.not-found .button-outline { background: var(--surface) !important }
+.not-found-card { max-width: 960px } .not-found h1 { font-size: clamp(44px, 6vw, 88px) }
