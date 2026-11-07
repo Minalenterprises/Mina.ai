@@ -8,7 +8,9 @@ Real-time 3D packaging design, procedural CAD dieline generation, and AI-assiste
 - Multi-Category Structural Packaging: Support for folding cartons, rigid boxes, canisters, shopping bags with handles, slide drawer boxes, and custom structures.
 - CorelDRAW Export (.cdr): Native binary PKZIP CorelDRAW dielines with 1:1 millimeter scale, Red (#FF0000) 0.076mm hairline cut rules, and Cyan (#00AEEF) crease rules.
 - AutoCAD / Laser Die Export (.dxf): Industry-standard DXF R12 dielines for CNC laser cutters, steel-rule die makers, and CAD software.
-- AI Packaging Partner: Google Gemini API integration with tool use for structural adjustments, dimension calculations, colorways, and custom code generation.
+- AI Packaging Partner: multi-provider AI with real tool calling and streaming. Supported providers: **Google Gemini**, **OpenAI** (Responses API), **Anthropic Claude** (Messages API, direct browser access) and **OpenRouter** (hundreds of tool-capable models). Pick the provider, key and model in Admin → AI Settings; every provider drives the same 19 validated design tools.
+- Magic Build: describe a product in one sentence (e.g. "matte black luxury perfume box with gold foil logo") and the AI picks the shape, dimensions, materials, texture, colours, typography and artwork, building it live in the 3D studio. Start it from Home or from the Studio chat.
+- Compact live AI status: a short animated status line ("Thinking…", "Applying edits…") while the AI works, then a one-line summary such as "Edited: colour · front text · texture" plus two watermarked screenshots of the result (click to enlarge and download). Raw tool calls stay out of the chat (console debug only).
 - Production Templates: Built-in library of retail bags, folding cartons, luxury presentation boxes, and mailers.
 
 ## Project Structure
@@ -16,7 +18,8 @@ Real-time 3D packaging design, procedural CAD dieline generation, and AI-assiste
 - `New/`: Vite + React + TypeScript 3D Packaging Studio application.
   - `New/src/pages/Studio.tsx`: Real-time studio workspace.
   - `New/src/components/ProductScene.tsx`: 3D procedural Three.js rendering engine and code sandbox.
-  - `New/src/lib/gemini.ts`: Google Gemini AI assistant with tool-use.
+  - `New/src/lib/gemini.ts`: AI assistant entry points (`chatWithAI`, `chatWithGemini`).
+  - `New/src/lib/ai/`: provider-neutral agent loop, tool runner, prompt compaction and one lazy-loaded adapter per provider (`providers/gemini.ts`, `openai.ts`, `anthropic.ts`, `openrouter.ts`).
   - `New/src/lib/cdr-export.ts`: CorelDRAW export pipeline.
   - `New/src/lib/dxf-export.ts`: AutoCAD DXF packaging CAD exporter.
   - `New/scripts/generate-cdr.ps1`: CorelDRAW COM automation engine for native binary .cdr files.
@@ -81,7 +84,10 @@ Planned work, in rough priority order. Items get checked off as they ship.
 - [ ] More print items: hang tags, thank-you cards, flyers, box sleeves and belly bands
 
 ### 6. More features
-- [ ] AI design generator: describe a product and get full artwork, colors and texture picks
+- [x] AI design generator: describe a product and get full artwork, colors and texture picks (Magic Build)
+- [x] Multi-provider AI: Gemini, OpenAI, Anthropic Claude and OpenRouter with per-provider keys, models and key tests
+- [x] Compact live AI status line, change summaries and watermarked result screenshots instead of raw tool output
+- [x] Faster AI: streaming replies, frame-batched UI updates, cancel-on-new-message, parallel read-only tools, compacted prompts and history, timeouts and retry with backoff
 - [ ] Template marketplace with ready-made designs for every category
 - [ ] Photo-real mockup renders (PNG / high-res) for sharing and marketing
 - [ ] Undo/redo history and autosave for every edit

@@ -1,7 +1,7 @@
-import { useState, lazy, Suspense } from 'react'
+import { useState, lazy, Suspense, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowUpRight, ArrowRight, ArrowDown, Check, CheckCheck, Box, Layers3, MoveUpRight, Play, Plus, Minus, Sparkles, MousePointer2, MessageCircle, PencilLine, PackageCheck, Rotate3D, X } from 'lucide-react'
+import { ArrowUpRight, ArrowRight, ArrowDown, Check, CheckCheck, Box, Layers3, MoveUpRight, Play, Plus, Minus, Sparkles, MousePointer2, MessageCircle, PencilLine, PackageCheck, Rotate3D, X, WandSparkles } from 'lucide-react'
 import { Header } from '../components/Header'
 import { Brand, MinalMark } from '../components/Brand'
 import { SiriGlow } from '../components/SiriGlow'
@@ -21,7 +21,13 @@ export function Home() {
   const [faq, setFaq] = useState<number | null>(0)
   const [selected, setSelected] = useState<Example | null>(null)
   const demo = { ...newDesign(), name: 'a little better.', color: '#b8c9ac', brief: 'A sage green presentation box for a stainless steel spoon', stage: 'design' as const }
+  const ideaRef = useRef<HTMLInputElement>(null)
   const start = () => navigate(`/studio${idea.trim() ? `?idea=${encodeURIComponent(idea.trim())}` : ''}`)
+  /** Magic Build: the studio opens and the AI builds the whole package from this one sentence. */
+  const magic = () => {
+    if (!idea.trim()) { setIdea('Matte black luxury perfume box with gold foil logo'); ideaRef.current?.focus(); return }
+    navigate(`/studio?idea=${encodeURIComponent(idea.trim())}&magic=1`)
+  }
   const openExample = (example: Example) => {
     const design = { ...newDesign(example.brief), name: example.name, category: example.type, color: example.color, stage: 'plan' as const, chatStep: 5, dimensions: example.type === 'Canister' ? { length: 90, width: 90, height: 140 } : example.type === 'Carton' ? { length: 60, width: 45, height: 150 } : { length: 240, width: 90, height: 40 }, messages: [{ id: crypto.randomUUID(), role: 'assistant' as const, text: `Let’s make ${example.name} your own. I’ve put together an editable starting plan from this concept. Change any detail, then bring it into 3D.` }] }
     saveDesign(design); navigate(`/studio/${design.id}`)
@@ -44,9 +50,9 @@ export function Home() {
           <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65, delay: .07 }}>Your idea.<br /><span className="hero-second-line">Made real.<span className="hero-asterisk"><MinalMark size={68} /></span></span></motion.h1>
           <motion.p className="hero-description" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65, delay: .14 }}>Meet your new creative partner. Turn that little<br className="desktop-br" /> idea into a product you can actually hold.<br className="desktop-br" /> Just start a conversation.</motion.p>
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .65, delay: .21 }}>
-            <form className="idea-input" onFocus={() => setIdeaFocus(true)} onBlur={() => setIdeaFocus(false)} onSubmit={event => { event.preventDefault(); start() }}><SiriGlow active={ideaFocus || !!idea.trim()} variant="soft" intensity={idea.trim() ? 1 : .7} /><Sparkles size={19} strokeWidth={1.6} /><input aria-label="Describe your product idea" placeholder="I have an idea for…" value={idea} onChange={e => setIdea(e.target.value)} maxLength={600} /><button type="submit" aria-label="Start creating from your idea"><ArrowUpRight size={21} /></button></form>
+            <form className="idea-input" onFocus={() => setIdeaFocus(true)} onBlur={() => setIdeaFocus(false)} onSubmit={event => { event.preventDefault(); start() }}><SiriGlow active={ideaFocus || !!idea.trim()} variant="soft" intensity={idea.trim() ? 1 : .7} /><Sparkles size={19} strokeWidth={1.6} /><input ref={ideaRef} aria-label="Describe your product idea" placeholder="I have an idea for…" value={idea} onChange={e => setIdea(e.target.value)} maxLength={600} /><button type="submit" aria-label="Start creating from your idea"><ArrowUpRight size={21} /></button></form>
             <div className="idea-suggestions"><span>Try a little idea</span><button onClick={() => setIdea('A box for a spoon')}>A spoon box <ArrowUpRight size={11} /></button><button onClick={() => setIdea('A minimal skincare carton')}>Skincare packaging <ArrowUpRight size={11} /></button></div>
-            <div className="hero-actions"><button className="button button-lime" onClick={start}>Bring your idea to life <ArrowUpRight size={18} /></button><a href="#how-it-works" className="watch-link"><span className="play-icon"><Play size={10} fill="currentColor" /></span> See how it works</a></div>
+            <div className="hero-actions"><button className="button button-lime" onClick={start}>Bring your idea to life <ArrowUpRight size={18} /></button><button className="button button-outline home-magic-button" onClick={magic} title="Describe a product in one sentence and the AI builds it in 3D"><WandSparkles size={17} /> Magic Build</button><a href="#how-it-works" className="watch-link"><span className="play-icon"><Play size={10} fill="currentColor" /></span> See how it works</a></div>
             <div className="hero-footnote"><span><Check size={12} /> No design skills needed</span><span className="tiny-divider" /><span><Check size={12} /> Free to explore</span></div>
           </motion.div>
         </div>

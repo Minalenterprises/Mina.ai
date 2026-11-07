@@ -1,5 +1,6 @@
 export type ToolActivity = { id: string; name: string; summary: string; status: 'complete' | 'error'; fields?: string[] }
-export type Message = { id: string; role: 'assistant' | 'user'; text: string; image?: string; tools?: ToolActivity[]; error?: boolean }
+/** `tools` is kept for undo and debugging only; the chat shows the compact `summary` instead of raw tool activity. */
+export type Message = { id: string; role: 'assistant' | 'user'; text: string; image?: string; tools?: ToolActivity[]; summary?: string; magic?: boolean; shots?: { label: string; image: string }[]; error?: boolean }
 export type Typography = {
   text: string
   subtitle: string

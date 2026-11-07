@@ -27,7 +27,7 @@ import {
   Code2,
   Play,
   Terminal,
-  X, Square, Undo2, Redo2, Type, Paintbrush
+  X, Square, Undo2, Redo2, Type, Paintbrush, WandSparkles
 } from 'lucide-react'
 import { Header } from '../components/Header'
 import { MinalMark } from '../components/Brand'
@@ -38,7 +38,7 @@ import { PlanEditor, downloadPlan } from '../components/PlanEditor'
 import { OrderModal } from '../components/OrderModal'
 import { Dieline, FlatDesignView } from '../components/Dieline'
 import { useStore } from '../lib/store'
-import { newDesign, uid, templates, type Design, type Template, type ToolActivity, type PreviewSettings } from '../lib/types'
+import { newDesign, uid, templates, type Design, type Template, type PreviewSettings } from '../lib/types'
 import { previewKey } from '../lib/design-tools'
 import { SurfaceEditor, ProductInfoEditor } from '../components/SurfaceEditor'
 import { getSurface, TEXTURES } from '../lib/textures'
@@ -48,8 +48,11 @@ import { DESIGN_TOOL_DECLARATIONS } from '../lib/design-tools'
 import { TypographyEditor } from '../components/TypographyEditor'
 import { ArtworkEditor } from '../components/ArtworkEditor'
 import { downloadFile, readImage, safeName } from '../lib/utils'
-import { isConfigured } from '../lib/ai-settings'
-import { chatWithGemini } from '../lib/gemini'
+import { isConfigured, loadSettings, PROVIDERS } from '../lib/ai-settings'
+import { chatWithAI } from '../lib/gemini'
+import { changeSummary } from '../lib/ai/labels'
+import { useFrameThrottle } from '../lib/use-frame-throttle'
+import { watermarkedShot } from '../lib/screenshots'
 import { exportToDxf } from '../lib/dxf-export'
 
 const ProductScene = lazy(() => import('../components/ProductScene'))
@@ -222,8 +225,8 @@ function NewStudio() {
 
   useEffect(() => {
     saveDesign(design)
-    navigate(`/studio/${design.id}`, { replace: true })
-  }, [design, saveDesign, navigate])
+    navigate(`/studio/${design.id}${params.get('magic') === '1' && design.brief ? '?magic=1' : ''}`, { replace: true })
+  }, [design, saveDesign, navigate, params])
 
   return (
     <RouteLoader />
@@ -272,8 +275,14 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
   const [templateFilter, setTemplateFilter] = useState('All')
   const [downloadMenu, setDownloadMenu] = useState(false)
   const aiActive = isConfigured()
+  const providerName = aiActive ? PROVIDERS[loadSettings().provider].name : ''
   const [progress, setProgress] = useState('')
-  const [activeTools, setActiveTools] = useState<ToolActivity[]>([])
+  const [streamText, setStreamText] = useState('')
+  /** Drives the AI-cursor overlay: each completed tool call = one extra "click". */
+  const [toolPulse, setToolPulse] = useState(0)
+  const [lightbox, setLightbox] = useState<{ label: string; image: string } | null>(null)
+  const [magicMode, setMagicMode] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [cameraView, setCameraView] = useState<PreviewSettings['camera']>('perspective')
   const [showType, setShowType] = useState(false)
   const [showSurface, setShowSurface] = useState(false)
@@ -282,6 +291,16 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
   const [undo, setUndo] = useState<Design[]>([])
   const [redo, setRedo] = useState<Design[]>([])
   const requestRef = useRef<AbortController | null>(null)
+  /** The running request, so a new message can cancel it and wait for it to settle. */
+  const inflightRef = useRef<Promise<void> | null>(null)
+  /** Design before the running request; a superseding request starts from it. */
+  const baselineRef = useRef<Design | null>(null)
+  const supersededRef = useRef(false)
+  const magicStartedRef = useRef(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Streaming text and live design edits arrive in bursts; apply at most once per frame.
+  const pushStreamText = useFrameThrottle(setStreamText)
+  const pushDesign = useFrameThrottle((next: Design) => setDesign(current => ({ ...next, messages: current.messages })))
   const previewRef = useRef<PreviewSettings>({ camera: cameraView, openBox, autoRotate })
 
   const endRef = useRef<HTMLDivElement>(null)
@@ -322,64 +341,164 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
     notify(direction === 'undo' ? 'Previous design restored' : 'Change restored')
   }
 
-  const send = async (text = input) => {
+  /** Waits until the live 3D canvas shows exactly this design, camera and lid state. */
+  const waitForCanvas = async (next: Design, signal: AbortSignal, relaxed = false) => {
+    pushDesign.flush()
+    setView('3d')
+    const key = previewKey(next)
+    const started = performance.now()
+    while (performance.now() - started < 12000) {
+      signal.throwIfAborted()
+      const canvas = sceneRef.current?.querySelector('canvas')
+      const preview = previewRef.current
+      // Relaxed mode (screenshots) also accepts a frame whose labels are still loading after a short grace period.
+      const grace = relaxed && performance.now() - started > 2500
+      const keyReady = canvas?.dataset.designKey === key || grace
+      const lidReady = canvas?.dataset.openBox === String(preview.openBox) || (grace && canvas?.dataset.openBox === undefined) || (relaxed && performance.now() - started > 6000) || (relaxed && performance.now() - started > 6000)
+      if (canvas && keyReady && lidReady && canvas.dataset.cameraView === preview.camera) {
+        if (canvas.dataset.labelError) throw new Error(canvas.dataset.labelError)
+        // Let one more frame land so the drawing buffer holds the settled image.
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        return canvas
+      }
+      await new Promise(resolve => setTimeout(resolve, 80))
+    }
+    throw new Error('The 3D preview did not become ready for inspection.')
+  }
+
+  /** Two watermarked screenshots of the finished design (front three-quarter and back), then the user's view is restored. */
+  const captureShots = async (next: Design, signal: AbortSignal) => {
+    const original = { ...previewRef.current }
+    const shots: { label: string; image: string }[] = []
+    setProgress('Capturing previews…')
+    try {
+      for (const [camera, label] of [['perspective', 'Front three-quarter'], ['back', 'Back']] as const) {
+        previewRef.current = { ...previewRef.current, camera, autoRotate: false }
+        setCameraView(camera); setAutoRotate(false)
+        const canvas = await waitForCanvas(next, signal, true)
+        shots.push({ label, image: watermarkedShot(canvas) })
+      }
+    } catch (error) {
+      console.debug('[minal-ai] preview capture skipped', error)
+    } finally {
+      previewRef.current = original
+      setCameraView(original.camera); setOpenBox(original.openBox); setAutoRotate(original.autoRotate)
+    }
+    return shots
+  }
+
+  const send = async (text = input, mode: 'chat' | 'magic' = 'chat') => {
     const value = text.trim()
-    if (!value || requestRef.current || uploading) return
+    if (!value || uploading) return
     if (!isConfigured()) { notify('Connect your AI key in Admin → Settings to use the design assistant.', 'info'); return }
-    const baseline = design
+    // A new message replaces the running request: cancel it, restore its starting design, then continue from there.
+    const superseding = !!requestRef.current
+    if (superseding) {
+      supersededRef.current = true
+      requestRef.current?.abort()
+      await inflightRef.current?.catch(() => undefined)
+      supersededRef.current = false
+    }
+    const baseline = superseding && baselineRef.current ? baselineRef.current : design
+    baselineRef.current = baseline
     const initialPreview = { camera: cameraView, openBox, autoRotate }
     previewRef.current = initialPreview
     const controller = new AbortController()
     requestRef.current = controller
-    const currentMessages = [...design.messages, { id: uid(), role: 'user' as const, text: value }]
-    setDesign({ ...design, messages: currentMessages })
+    const userMessage = { id: uid(), role: 'user' as const, text: value, ...(mode === 'magic' ? { magic: true } : {}) }
+    const currentMessages: Design['messages'] = [...design.messages, userMessage]
+    setDesign(current => ({ ...(superseding ? { ...baseline, messages: current.messages } : current), messages: [...current.messages, userMessage] }))
     setInput('')
+    setMagicMode(false)
     setThinking(true)
-    setActiveTools([])
+    setProgress(mode === 'magic' ? 'Reading your idea…' : 'Thinking…')
+    setStreamText('')
+    setToolPulse(0)
     setShowArtwork(false); setShowSpecs(false); setShowType(false); setShowSurface(false); setShowTemplates(false); setShowCode(false)
-    try {
-      const history = currentMessages.filter(message => !message.error).map(message => ({ role: (message.role === 'assistant' ? 'model' : 'user') as 'user' | 'model', text: message.text, image: message.image }))
-      const result = await chatWithGemini(history, baseline, {
-        signal: controller.signal, preview: initialPreview, onProgress: setProgress,
-        onTool: activity => setActiveTools(tools => [...tools, activity]),
-        onDesign: next => setDesign(current => ({ ...next, messages: current.messages })),
-        onPreview: next => { previewRef.current = next; setCameraView(next.camera); setOpenBox(next.openBox); setAutoRotate(next.autoRotate) },
-        capturePreview: async next => {
-          setView('3d')
-          const key = previewKey(next)
-          const started = performance.now()
-          while (performance.now() - started < 12000) {
-            controller.signal.throwIfAborted()
-            const canvas = sceneRef.current?.querySelector('canvas')
-            const preview = previewRef.current
-            if (canvas?.dataset.designKey === key && canvas.dataset.cameraView === preview.camera && canvas.dataset.openBox === String(preview.openBox)) {
-              if (canvas.dataset.labelError) throw new Error(canvas.dataset.labelError)
-              // Keep vision payload modest while retaining readable printed text.
-              const capture = document.createElement('canvas')
-              const scale = Math.min(1, 1400 / canvas.width)
-              capture.width = canvas.width * scale; capture.height = canvas.height * scale
-              capture.getContext('2d')!.drawImage(canvas, 0, 0, capture.width, capture.height)
-              return capture.toDataURL('image/png')
-            }
-            await new Promise(resolve => setTimeout(resolve, 80))
+    const run = (async () => {
+      try {
+        const history = currentMessages.filter(message => !message.error).map(message => ({ role: (message.role === 'assistant' ? 'model' : 'user') as 'user' | 'model', text: message.text, image: message.image }))
+        const result = await chatWithAI(history, baseline, {
+          signal: controller.signal, preview: initialPreview, mode,
+          onProgress: setProgress,
+          onTool: activity => { if (activity.status === 'complete') setToolPulse(count => count + 1) },
+          onText: pushStreamText.push,
+          onDesign: pushDesign.push,
+          onPreview: next => { previewRef.current = next; setCameraView(next.camera); setOpenBox(next.openBox); setAutoRotate(next.autoRotate) },
+          capturePreview: async next => {
+            const canvas = await waitForCanvas(next, controller.signal)
+            // Keep vision payload modest while retaining readable printed text.
+            const capture = document.createElement('canvas')
+            const scale = Math.min(1, 1400 / canvas.width)
+            capture.width = canvas.width * scale; capture.height = canvas.height * scale
+            capture.getContext('2d')!.drawImage(canvas, 0, 0, capture.width, capture.height)
+            return capture.toDataURL('image/png')
           }
-          throw new Error('The 3D preview did not become ready for inspection.')
+        })
+        pushDesign.cancel(); pushStreamText.cancel()
+        if (result.tools.some(tool => tool.status === 'complete' && tool.fields?.length && tool.name !== 'set_preview')) {
+          setUndo(history => [...history.slice(-19), baseline]); setRedo([])
         }
-      })
-      if (result.tools.some(tool => tool.status === 'complete' && tool.fields?.length && tool.name !== 'set_preview')) {
-        setUndo(history => [...history.slice(-19), baseline]); setRedo([])
+        const summary = changeSummary(result.tools, mode === 'magic' ? 'Built' : 'Edited')
+        const replyId = uid()
+        setDesign(current => ({ ...result.design, chatStep: 5, messages: [...current.messages, { id: replyId, role: 'assistant', text: result.text, tools: result.tools, ...(summary ? { summary } : {}) }], updatedAt: new Date().toISOString() }))
+        // From here the edits are final: a superseding message starts from this design, not the old baseline.
+        baselineRef.current = result.design
+        if (summary) {
+          const shots = await captureShots(result.design, controller.signal)
+          if (shots.length) setDesign(current => ({
+            ...current,
+            // Screenshots are kept on the two latest replies only, to keep browser storage small.
+            messages: current.messages.map(message => message.id === replyId ? { ...message, shots } : message).map((message, index, all) => message.shots && all.slice(index + 1).filter(later => later.shots).length >= 2 ? { ...message, shots: undefined } : message),
+          }))
+        }
+      } catch (error) {
+        pushDesign.cancel(); pushStreamText.cancel()
+        if (supersededRef.current && controller.signal.aborted) {
+          // Replaced by a newer message: quietly drop this request's partial edits.
+          supersededRef.current = false
+          setDesign(current => ({ ...baseline, messages: current.messages }))
+          return
+        }
+        console.debug('[minal-ai] request failed', error)
+        const message = controller.signal.aborted ? 'Stopped. Your previous design has been restored.' : `${error instanceof Error ? error.message : 'AI connection failed.'} Your previous design has been restored.`
+        setDesign(current => ({ ...baseline, messages: [...current.messages, { id: uid(), role: 'assistant', text: message, error: true }] }))
+        setCameraView(initialPreview.camera); setOpenBox(initialPreview.openBox); setAutoRotate(initialPreview.autoRotate)
+        notify(message, 'info')
+      } finally {
+        if (requestRef.current === controller) {
+          requestRef.current = null
+          inflightRef.current = null
+          setThinking(false)
+          setStreamText('')
+          setProgress('')
+        }
       }
-      setDesign(current => ({ ...result.design, chatStep: 5, messages: [...current.messages, { id: uid(), role: 'assistant', text: result.text, tools: result.tools }], updatedAt: new Date().toISOString() }))
-    } catch (error) {
-      const message = controller.signal.aborted ? 'Stopped. Your previous design has been restored.' : `${error instanceof Error ? error.message : 'AI connection failed.'} Your previous design has been restored.`
-      setDesign(current => ({ ...baseline, messages: [...current.messages, { id: uid(), role: 'assistant', text: message, error: true }] }))
-      setCameraView(initialPreview.camera); setOpenBox(initialPreview.openBox); setAutoRotate(initialPreview.autoRotate)
-      notify(message, 'info')
-    } finally {
-      requestRef.current = null
-      setThinking(false)
-    }
+    })()
+    inflightRef.current = run
+    await run
   }
+
+  const magicBuild = (sentence = input) => {
+    if (!sentence.trim()) { setMagicMode(true); textareaRef.current?.focus(); return }
+    void send(sentence, 'magic')
+  }
+
+  // Magic Build started from Home (?magic=1) runs once the studio has opened.
+  useEffect(() => {
+    if (searchParams.get('magic') !== '1' || magicStartedRef.current) return
+    const timer = setTimeout(() => {
+      magicStartedRef.current = true
+      setSearchParams({}, { replace: true })
+      const brief = design.brief.trim()
+      if (!brief) return
+      if (!isConfigured()) { setMagicMode(true); notify('Connect your AI key in Admin → Settings to use Magic Build.', 'info'); return }
+      void send(brief, 'magic')
+    }, 0)
+    return () => clearTimeout(timer)
+    // Runs only when the magic flag appears; `send` reads the latest state itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   const applyTemplate = (t: Template) => {
     setCodeDraft(t.customCode || '')
@@ -535,9 +654,6 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
     notify('Your 3D preview is downloaded.')
   }
 
-  // Drives the AI-cursor overlay: each completed tool call = one extra "click".
-  const completedTools = activeTools.filter(tool => tool.status === 'complete').length
-  const latestTool = activeTools.at(-1)?.summary
 
   const templateCategories = ['All', 'Bags & Retail', 'Boxes', 'Specialty']
   const filteredTemplates =
@@ -642,7 +758,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                 <h2>AI Design Partner</h2>
                 <span>
                   <span className="status-dot" />{' '}
-                  {thinking ? 'Working on your design' : aiActive ? `Connected · ${DESIGN_TOOL_DECLARATIONS.length} design tools` : 'AI connection needed'}
+                  {thinking ? 'Working on your design' : aiActive ? `${providerName} · ${DESIGN_TOOL_DECLARATIONS.length} design tools` : 'AI connection needed'}
                 </span>
               </div>
               <button
@@ -656,7 +772,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
             </div>
 
             <div className="conversation-date">YOUR DESIGN CONVERSATION</div>
-            {!aiActive && <div className="ai-connect-notice"><strong>Connect your AI designer</strong><p>Add your Google AI key to enable design tools. You can edit all design details manually.</p><Link to="/admin?tab=settings">Open AI settings <ArrowRight size={13} /></Link></div>}
+            {!aiActive && <div className="ai-connect-notice"><strong>Connect your AI designer</strong><p>Add a Google Gemini, OpenAI, Claude or OpenRouter key to enable design tools. You can edit all design details manually.</p><Link to="/admin?tab=settings">Open AI settings <ArrowRight size={13} /></Link></div>}
 
             <div className="studio-messages" ref={messagesRef} role="log" aria-label="Design conversation" aria-live="polite">
               {design.messages.map(message => (
@@ -675,9 +791,11 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                     {message.image && (
                       <img className="reference-preview" src={message.image} alt="Uploaded design reference" />
                     )}
-                    <p>{message.text}</p>
-                    {!!message.tools?.length && <details className="tool-history"><summary>{message.tools.length} tool actions</summary>{message.tools.map(tool => <div key={tool.id} className={tool.status === 'error' ? 'tool-error' : ''}><span>{tool.status === 'complete' ? '✓' : '!'}</span><div>{tool.summary}{!!tool.fields?.length && <small>{tool.fields.join(', ')}</small>}</div></div>)}</details>}
-                    {message.error && !thinking && <button className="retry-ai" onClick={() => { const previous = design.messages.slice(0, design.messages.indexOf(message)).reverse().find(item => item.role === 'user'); if (previous) void send(previous.text) }}>Retry request <RotateCcw size={12} /></button>}
+                    {message.magic && <span className="magic-tag"><WandSparkles size={11} /> Magic Build</span>}
+                    {message.text && <p>{message.text}</p>}
+                    {message.role === 'assistant' && !message.error && (() => { const summary = message.summary || changeSummary(message.tools); return summary ? <span className="change-summary"><Check size={11} /> {summary}</span> : null })()}
+                    {!!message.shots?.length && <div className="design-shots">{message.shots.map(shot => <button key={shot.label} type="button" onClick={() => setLightbox(shot)} aria-label={`Open ${shot.label.toLowerCase()} view larger`}><img src={shot.image} alt={`${design.name} — ${shot.label.toLowerCase()} view`} loading="lazy" /><span>{shot.label}</span></button>)}</div>}
+                    {message.error && !thinking && <button className="retry-ai" onClick={() => { const previous = design.messages.slice(0, design.messages.indexOf(message)).reverse().find(item => item.role === 'user'); if (previous) void send(previous.text, previous.magic ? 'magic' : 'chat') }}>Retry request <RotateCcw size={12} /></button>}
                     {message.role === 'user' && <CheckCheck size={12} className="message-tick" />}
                   </div>
                 </motion.div>
@@ -688,7 +806,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                   <span className="message-avatar">
                     <MinalMark size={14} />
                   </span>
-                  <div className="harness-progress"><span className="thinking-line"><SiriOrb active size={16} /><span className="shimmer-text">{progress || 'Planning…'}</span></span>{activeTools.slice(-3).map(tool => <small key={tool.id}>{tool.status === 'complete' ? '✓' : '!'} {tool.summary}</small>)}</div>
+                  <div className="harness-progress" aria-live="polite"><span className="thinking-line"><SiriOrb active size={16} /><span className="shimmer-text">{progress || 'Thinking…'}</span></span>{streamText && <p className="stream-text">{streamText}</p>}</div>
                 </div>
               )}
 
@@ -716,8 +834,18 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
 
             {/* Chat Compose Box */}
             <div className="chat-compose-area">
+              {!thinking && aiActive && design.chatStep === 0 && !magicMode && (
+                <button type="button" className="magic-build-card" onClick={() => magicBuild(input || design.brief)}>
+                  <span><WandSparkles size={16} /></span>
+                  <div><strong>Magic Build</strong><small>{(input || design.brief).trim() ? 'Build the whole package from your idea: shape, size, materials, colours, type and artwork.' : 'Describe your product in one sentence and watch it build live.'}</small></div>
+                  <ArrowRight size={14} />
+                </button>
+              )}
               {!thinking && (
                 <div className="chat-suggestions">
+                  <button type="button" className={`magic-chip ${magicMode ? 'active' : ''}`} aria-pressed={magicMode} onClick={() => input.trim() ? magicBuild(input) : setMagicMode(on => !on)}>
+                    <WandSparkles size={12} /> Magic Build
+                  </button>
                   {['Improve the typography', 'Explore a new structure', 'Review this design'].map(suggestion => (
                     <button key={suggestion} onClick={() => send(suggestion)}>
                       {suggestion}
@@ -728,19 +856,22 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
               )}
 
               <form
-                className={`studio-compose ${thinking ? 'is-thinking' : ''}`}
+                className={`studio-compose ${thinking ? 'is-thinking' : ''} ${magicMode ? 'is-magic' : ''}`}
                 onSubmit={e => {
                   e.preventDefault()
-                  send()
+                  void send(input, magicMode ? 'magic' : 'chat')
                 }}
               >
                 <SiriGlow active={thinking} variant="ring" />
                 <textarea
-                  aria-label="Message minal about your product"
+                  ref={textareaRef}
+                  aria-label={magicMode ? 'Describe your product for Magic Build' : 'Message minal about your product'}
                   placeholder={
-                    aiActive
-                      ? 'Say anything: "make a hexagonal box", "remove the top", "shopping bag with handles"…'
-                      : 'Connect AI in Settings, or use the design editors…'
+                    !aiActive
+                      ? 'Connect AI in Settings, or use the design editors…'
+                      : magicMode
+                        ? 'One sentence, e.g. "matte black luxury perfume box with gold foil logo"'
+                        : 'Say anything: "make a hexagonal box", "remove the top", "shopping bag with handles"…'
                   }
                   value={input}
                   onChange={e => setInput(e.target.value)}
@@ -749,8 +880,9 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                   onKeyDown={e => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()
-                      send()
+                      void send(input, magicMode ? 'magic' : 'chat')
                     }
+                    if (e.key === 'Escape' && magicMode) setMagicMode(false)
                   }}
                 />
                 <div>
@@ -764,7 +896,17 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
                   >
                     {uploading ? <Loader2 size={18} className="spin" /> : <Paperclip size={18} />}
                   </button>
-                  <span>Describe a change to update your preview</span>
+                  <button
+                    type="button"
+                    className={`icon-button magic-button ${magicMode ? 'active' : ''}`}
+                    aria-label="Magic Build: build the whole package from one sentence"
+                    title="Magic Build: build the whole package from one sentence"
+                    disabled={!aiActive || uploading}
+                    onClick={() => magicBuild()}
+                  >
+                    <WandSparkles size={17} />
+                  </button>
+                  <span>{magicMode ? 'Magic Build · one sentence builds everything' : thinking ? 'Send a new message to replace this request' : 'Describe a change to update your preview'}</span>
                   <button
                     type={thinking ? "button" : "submit"}
                     onClick={thinking ? () => requestRef.current?.abort() : undefined}
@@ -824,7 +966,7 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
               </div>
 
               {view === '3d' || flatMode === 'projection' ? (
-                <SceneStage thinking={thinking} interactive3d={view === '3d'} pulse={completedTools} label={latestTool}>
+                <SceneStage thinking={thinking} interactive3d={view === '3d'} pulse={toolPulse} label={progress || undefined}>
                   <ProductScene
                     design={design}
                     openBox={openBox}
@@ -1130,6 +1272,22 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
       </div>
 
       {order && <OrderModal design={design} onClose={closeOrder} />}
+      <AnimatePresence>
+        {lightbox && (
+          <motion.div className="shot-lightbox" role="dialog" aria-modal="true" aria-label={`${lightbox.label} view`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setLightbox(null)} onKeyDown={e => { if (e.key === 'Escape') setLightbox(null) }}>
+            <motion.figure initial={{ scale: .96, y: 8 }} animate={{ scale: 1, y: 0 }} exit={{ scale: .97 }} onClick={e => e.stopPropagation()}>
+              <img src={lightbox.image} alt={`${design.name} — ${lightbox.label.toLowerCase()} view`} />
+              <figcaption>
+                <span>{design.name} · {lightbox.label}</span>
+                <span>
+                  <button type="button" className="button button-lime button-sm" autoFocus onClick={() => { const a = document.createElement('a'); a.href = lightbox.image; a.download = `${safeName(design.name)}-${safeName(lightbox.label)}.${lightbox.image.startsWith('data:image/webp') ? 'webp' : 'jpg'}`; a.click() }}><Download size={14} /> Download</button>
+                  <button type="button" className="icon-button" aria-label="Close preview" onClick={() => setLightbox(null)}><X size={16} /></button>
+                </span>
+              </figcaption>
+            </motion.figure>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
