@@ -55,9 +55,15 @@ Planned work, in rough priority order. Items get checked off as they ship.
 
 ### 1. Performance and bug fixes (first)
 - [ ] Fix lag in the 3D Studio (heavy re-renders, large 3D bundle ~725 kB, slow model switching)
-- [ ] Smooth, instant switching between pages, shapes and projects (no long loading)
+  - [x] Shadows are only recalculated when the model or its animation changes, not on every orbit frame (smoother dragging and auto-rotate)
+  - [x] Lint-clean render code: no state updates inside effects or impure calls during render (fewer cascading re-renders)
+  - [ ] Split the 1,300-line Studio page into smaller memoized panels so typing in chat doesn't re-render the 3D toolbar and drawers
+  - [ ] Lower the render resolution while orbiting and restore full sharpness when the model is still
+  - [ ] Load the 75 kB font manifest only when the Type drawer opens
+- [x] Smooth, instant switching between pages, shapes and projects (no long loading): the Studio and its 3D engine are prefetched while the browser is idle and on link hover, and the page-exit animation is twice as fast
 - [ ] Fix UI bugs across the website (layout glitches, broken states, mobile issues)
-- [ ] Remove third-party session-recording / tracking scripts from `New/index.html` and fix the light `theme-color`
+- [x] Remove third-party session-recording / tracking scripts from `New/index.html` and fix the light `theme-color` (the browser bar now matches dark mode from the first paint)
+- [x] Fix the build progress bar starting at 100% on a second build, and the `check:ai` test that still expected unknown texture names to fail
 - [ ] Visual QA pass on Home, Projects, Studio, Admin and all editor drawers
 
 ### 2. Animations and colors
