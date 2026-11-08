@@ -10,7 +10,9 @@ const preview = { camera: 'front', openBox: false, autoRotate: false }
 assert.equal(api.TEXTURES.length, 62)
 assert.equal(new Set(api.TEXTURES.map(t => t.id)).size, api.TEXTURES.length)
 assert.equal(api.DESIGN_TOOL_DECLARATIONS.length, 21)
-assert.throws(() => api.validateSurface({ texture: 'Imaginary Material' }))
+// Texture names are matched forgivingly (a near-miss never fails a build), but always resolve to a real texture id.
+assert.ok(api.TEXTURES.some(t => t.id === api.validateSurface({ texture: 'Imaginary Material' }).texture))
+assert.equal(api.validateSurface({ texture: 'Bookcloth Linen' }).texture, 'linen')
 assert.throws(() => api.validateSurface({ scale: 0 }))
 assert.throws(() => api.validateProductInfo({ barcode: '4006381333932' }))
 assert.ok(api.validBarcode('4006381333931'))

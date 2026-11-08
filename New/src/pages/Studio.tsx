@@ -45,7 +45,6 @@ import { previewKey } from '../lib/design-tools'
 import { getSurface, TEXTURES } from '../lib/textures'
 import { getTypography, printedText } from '../lib/typography'
 import { getProductInfo } from '../lib/product-info'
-import { DESIGN_TOOL_DECLARATIONS } from '../lib/design-tools'
 import { TypographyEditor } from '../components/TypographyEditor'
 import { downloadFile, readImage, safeName } from '../lib/utils'
 import { isConfigured, loadSettings, providerName as getProviderName } from '../lib/ai-settings'
@@ -53,6 +52,9 @@ import { chatWithAI } from '../lib/gemini'
 import { changeSummary } from '../lib/ai/labels'
 import { useFrameThrottle } from '../lib/use-frame-throttle'
 import { watermarkedShot } from '../lib/screenshots'
+
+/** Monotonic clock for async waits (kept out of render so React's purity rules stay happy). */
+const clock = () => performance.now()
 
 const ProductScene = lazy(() => import('../components/ProductScene'))
 const TemplateLibrary = lazy(() => import('../components/TemplateLibrary'))
@@ -359,15 +361,15 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
     pushDesign.flush()
     setView('3d')
     const key = previewKey(next)
-    const started = performance.now()
-    while (performance.now() - started < 12000) {
+    const started = clock()
+    while (clock() - started < 12000) {
       signal.throwIfAborted()
       const canvas = sceneRef.current?.querySelector('canvas')
       const preview = previewRef.current
       // Relaxed mode (screenshots) also accepts a frame whose labels are still loading after a short grace period.
-      const grace = relaxed && performance.now() - started > 2500
+      const grace = relaxed && clock() - started > 2500
       const keyReady = canvas?.dataset.designKey === key || grace
-      const lidReady = canvas?.dataset.openBox === String(preview.openBox) || (grace && canvas?.dataset.openBox === undefined) || (relaxed && performance.now() - started > 6000) || (relaxed && performance.now() - started > 6000)
+      const lidReady = canvas?.dataset.openBox === String(preview.openBox) || (grace && canvas?.dataset.openBox === undefined) || (relaxed && clock() - started > 6000)
       if (canvas && keyReady && lidReady && canvas.dataset.cameraView === preview.camera) {
         if (canvas.dataset.labelError) throw new Error(canvas.dataset.labelError)
         // Let one more frame land so the drawing buffer holds the settled image.
@@ -494,28 +496,13 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
   }
 
   const sendRef = useRef(send)
-  sendRef.current = send
+  useEffect(() => { sendRef.current = send })
 
   const magicBuild = (sentence = input) => {
     if (!sentence.trim()) { setMagicMode(true); textareaRef.current?.focus(); return }
     void send(sentence, 'magic')
   }
 
-  // Magic Build started from Home (?magic=1) runs once the studio has opened.
-  useEffect(() => {
-    if (searchParams.get('magic') !== '1' || magicStartedRef.current) return
-    const timer = setTimeout(() => {
-      magicStartedRef.current = true
-      setSearchParams({}, { replace: true })
-      const brief = design.brief.trim()
-      if (!brief) return
-      if (!isConfigured()) { setMagicMode(true); notify('Finish setting up your AI provider in Admin → Settings to use Magic Build.', 'info'); return }
-      setStarted(true); startBuild(brief, true)
-    }, 0)
-    return () => clearTimeout(timer)
-    // Runs only when the magic flag appears; `send` reads the latest state itself.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams])
 
   const applyLibrary = (updates: Partial<Design>, label: string, t?: Template) => {
     if (t) {
@@ -696,13 +683,29 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
     setBuildPrompt(text); setBuildAgent(agent); buildRetried.current = false; setShots([]); setView('3d'); setBuild('building'); buildRef.current = true; sawThinking.current = false
     void send(text, agent ? 'magic' : 'chat')
   }
+
+  // Magic Build started from Home (?magic=1) runs once the studio has opened.
+  useEffect(() => {
+    if (searchParams.get('magic') !== '1' || magicStartedRef.current) return
+    const timer = setTimeout(() => {
+      magicStartedRef.current = true
+      setSearchParams({}, { replace: true })
+      const brief = design.brief.trim()
+      if (!brief) return
+      if (!isConfigured()) { setMagicMode(true); notify('Finish setting up your AI provider in Admin → Settings to use Magic Build.', 'info'); return }
+      setStarted(true); startBuild(brief, true)
+    }, 0)
+    return () => clearTimeout(timer)
+    // Runs only when the magic flag appears; `send` reads the latest state itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
   const captureShots = async (): Promise<Shot[]> => {
     const views: [PreviewSettings['camera'], string][] = [['perspective', 'Hero'], ['front', 'Front'], ['top', 'Top'], ['back', 'Back']]
     const out: Shot[] = []
     for (const [v, label] of views) {
       setCameraView(v)
-      const t0 = performance.now()
-      while (performance.now() - t0 < 5000) {
+      const t0 = clock()
+      while (clock() - t0 < 5000) {
         const c = sceneRef.current?.querySelector('canvas')
         if (c?.dataset.cameraView === v && c.dataset.designKey) break
         await new Promise(r => setTimeout(r, 80))
@@ -752,8 +755,8 @@ function StudioWorkspace({ initialDesign }: { initialDesign: Design }) {
       const stop = words.findIndex((w, i) => i > 0 && /^(for|with|in|of|that|to|and|from)$/i.test(w)); if (stop > 0) words.length = stop; words.length = Math.min(words.length, 4)
       if (words.length) patch({ name: words.map(w => w[0].toUpperCase() + w.slice(1)).join(' ') })
     }
-    setBuild('shooting')
-    void captureShots().then(list => { setShots(list); setBuild(list.length ? 'gallery' : 'off') })
+    // Defer the phase change one microtask so the effect never sets state synchronously.
+    void Promise.resolve().then(() => { setBuild('shooting'); return captureShots() }).then(list => { setShots(list); setBuild(list.length ? 'gallery' : 'off') })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [thinking, build])
   const lastError = [...design.messages].reverse().find(m => m.role === 'assistant')?.text

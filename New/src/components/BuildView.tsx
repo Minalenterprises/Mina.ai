@@ -37,11 +37,12 @@ export function BuildView({ phase, name, prompt, progress, tools, shots, error, 
 
   // creeping progress that never claims 100% until done
   useEffect(() => {
-    if (!building) { setPct(100); return }
+    if (!building) { const id = window.setTimeout(() => setPct(100), 0); return () => window.clearTimeout(id) }
     const t0 = performance.now()
     const id = window.setInterval(() => {
       const s = (performance.now() - t0) / 1000
-      setPct(p => Math.max(p, Math.min(phase === 'shooting' ? 97 : 92, Math.round(100 * (1 - Math.exp(-s / 14))) + tools.length * 3)))
+      // A fresh build restarts from zero instead of resuming at the last run's 100%.
+      setPct(p => Math.max(p >= 100 ? 0 : p, Math.min(phase === 'shooting' ? 97 : 92, Math.round(100 * (1 - Math.exp(-s / 14))) + tools.length * 3)))
     }, 150)
     return () => window.clearInterval(id)
   }, [building, phase, tools.length])

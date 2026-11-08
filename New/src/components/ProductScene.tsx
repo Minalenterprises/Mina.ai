@@ -50,6 +50,8 @@ type Engine = {
   build?: BuildRun
   view: { cameraView: PreviewSettings['camera']; projection: 'perspective' | 'orthographic' }
   needsRender: boolean
+  /** Only the camera moved (orbit, zoom, auto-rotate): redraw the frame but reuse the cached shadow map. */
+  cameraDirty?: boolean
   resize: () => void
 }
 
@@ -82,6 +84,10 @@ export default function ProductScene({ design, openBox = true, autoRotate = fals
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    // The light is fixed to the product, so the shadow map only changes when the model or its animation does.
+    // Re-rendering it on every orbit frame was the biggest cost while dragging.
+    renderer.shadowMap.autoUpdate = false
+    renderer.shadowMap.needsUpdate = true
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure = 1
     renderer.outputColorSpace = THREE.SRGBColorSpace
@@ -148,7 +154,7 @@ export default function ProductScene({ design, openBox = true, autoRotate = fals
       },
     }
     engineRef.current = engine
-    controls.addEventListener('change', () => { engine.needsRender = true })
+    controls.addEventListener('change', () => { engine.cameraDirty = true })
     const observer = new ResizeObserver(engine.resize)
     observer.observe(container)
     engine.resize()
@@ -226,8 +232,10 @@ export default function ProductScene({ design, openBox = true, autoRotate = fals
         animating = true
       }
       const moved = controls.update()
-      if (moved || animating || engine.needsRender) {
+      if (moved || animating || engine.needsRender || engine.cameraDirty) {
+        if (animating || engine.needsRender) renderer.shadowMap.needsUpdate = true
         engine.needsRender = false
+        engine.cameraDirty = false
         renderer.render(scene, engine.camera)
         const canvas = renderer.domElement
         if (model?.labelsReady) canvas.dataset.designKey = model.key
@@ -438,7 +446,7 @@ export default function ProductScene({ design, openBox = true, autoRotate = fals
     if (firstOpen.current) { firstOpen.current = false; engine.open.current = engine.open.target; engine.model?.built.setOpen(engine.open.current) }
     engine.needsRender = true
   }, [openBox])
-  useEffect(() => { const engine = engineRef.current; if (engine) { engine.controls.autoRotate = projection === 'perspective' && autoRotate; engine.needsRender = true } }, [autoRotate, projection])
+  useEffect(() => { const engine = engineRef.current; if (engine) { engine.controls.autoRotate = projection === 'perspective' && autoRotate; engine.cameraDirty = true } }, [autoRotate, projection])
   useEffect(() => {
     if (!buildKey) return
     buildRef.current?.({})
