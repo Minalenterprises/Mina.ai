@@ -58,8 +58,8 @@ Planned work, in rough priority order. Items get checked off as they ship.
   - [x] Shadows are only recalculated when the model or its animation changes, not on every orbit frame (smoother dragging and auto-rotate)
   - [x] Lint-clean render code: no state updates inside effects or impure calls during render (fewer cascading re-renders)
   - [ ] Split the 1,300-line Studio page into smaller memoized panels so typing in chat doesn't re-render the 3D toolbar and drawers
-  - [ ] Lower the render resolution while orbiting and restore full sharpness when the model is still
-  - [ ] Load the 75 kB font manifest only when the Type drawer opens
+  - [x] Lower the render resolution while orbiting and restore full sharpness when the model is still
+  - [x] Load the 75 kB font manifest only when the first font is needed (already lazy)
 - [x] Smooth, instant switching between pages, shapes and projects (no long loading): the Studio and its 3D engine are prefetched while the browser is idle and on link hover, and the page-exit animation is twice as fast
 - [ ] Fix UI bugs across the website (layout glitches, broken states, mobile issues)
 - [x] Remove third-party session-recording / tracking scripts from `New/index.html` and fix the light `theme-color` (the browser bar now matches dark mode from the first paint)
