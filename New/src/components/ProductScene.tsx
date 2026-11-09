@@ -155,6 +155,16 @@ export default function ProductScene({ design, openBox = true, autoRotate = fals
     }
     engineRef.current = engine
     controls.addEventListener('change', () => { engine.cameraDirty = true })
+    // Render at lower resolution while orbiting, then restore full sharpness once the model is still.
+    const fullRatio = Math.min(window.devicePixelRatio || 1, 2)
+    let restoreTimer = 0
+    const setRatio = (ratio: number) => {
+      if (renderer.getPixelRatio() === ratio) return
+      renderer.setPixelRatio(ratio)
+      engine.resize()
+    }
+    controls.addEventListener('start', () => { window.clearTimeout(restoreTimer); if (fullRatio > 1) setRatio(1) })
+    controls.addEventListener('end', () => { window.clearTimeout(restoreTimer); restoreTimer = window.setTimeout(() => setRatio(fullRatio), 350) })
     const observer = new ResizeObserver(engine.resize)
     observer.observe(container)
     engine.resize()
@@ -249,7 +259,7 @@ export default function ProductScene({ design, openBox = true, autoRotate = fals
     return () => {
       cancelAnimationFrame(frame)
       offBuild(); offLid()
-      observer.disconnect(); intersection.disconnect()
+      window.clearTimeout(restoreTimer); observer.disconnect(); intersection.disconnect()
       renderer.domElement.removeEventListener('webglcontextlost', onLost)
       renderer.domElement.removeEventListener('webglcontextrestored', onRestored)
       controls.dispose()
