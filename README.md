@@ -57,7 +57,8 @@ Planned work, in rough priority order. Items get checked off as they ship.
 - [ ] Fix lag in the 3D Studio (heavy re-renders, large 3D bundle ~725 kB, slow model switching)
   - [x] Shadows are only recalculated when the model or its animation changes, not on every orbit frame (smoother dragging and auto-rotate)
   - [x] Lint-clean render code: no state updates inside effects or impure calls during render (fewer cascading re-renders)
-  - [ ] Split the 1,300-line Studio page into smaller memoized panels so typing in chat doesn't re-render the 3D toolbar and drawers
+  - [x] The 3D scene is memoized so typing in chat no longer re-renders it
+  - [ ] Split the 1,300-line Studio page into smaller memoized panels (chat composer state still lives in the page; move it into its own panel next)
   - [x] Lower the render resolution while orbiting and restore full sharpness when the model is still
   - [x] Load the 75 kB font manifest only when the first font is needed (already lazy)
 - [x] Smooth, instant switching between pages, shapes and projects (no long loading): the Studio and its 3D engine are prefetched while the browser is idle and on link hover, and the page-exit animation is twice as fast

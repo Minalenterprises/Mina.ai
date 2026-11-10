@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
@@ -57,7 +57,7 @@ type Engine = {
 
 const easeOutBack = (x: number) => { const c1 = 1.4, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2) }
 
-export default function ProductScene({ design, openBox = true, autoRotate = false, resetKey = 0, cameraView = 'perspective', projection = 'perspective', sceneId, buildKey, onBuildProgress, showProps = true }: Props) {
+function ProductSceneImpl({ design, openBox = true, autoRotate = false, resetKey = 0, cameraView = 'perspective', projection = 'perspective', sceneId, buildKey, onBuildProgress, showProps = true }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const engineRef = useRef<Engine | null>(null)
   const designRef = useRef(design)
@@ -474,3 +474,5 @@ export default function ProductScene({ design, openBox = true, autoRotate = fals
     </div>
   )
 }
+
+export default memo(ProductSceneImpl)
