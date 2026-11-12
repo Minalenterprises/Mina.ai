@@ -1,4 +1,5 @@
 import type { Design, Surface } from './types'
+import { PATTERNS, PATTERN_IDS } from './texture-patterns'
 
 /**
  * Procedural material finish catalogue. This module is intentionally light (ids, names and
@@ -17,6 +18,7 @@ export const TEXTURES = [
   ['bamboo', 'Bamboo', 'Natural'], ['rattan', 'Rattan cane weave', 'Natural'], ['terrazzo', 'Terrazzo', 'Natural'], ['slate', 'Slate', 'Natural'], ['croc-leather', 'Embossed croc leather', 'Natural'], ['burl', 'Walnut burl', 'Natural'], ['sand', 'Fine sand', 'Natural'],
   ['holographic', 'Holographic foil', 'Metal'], ['pearlescent', 'Pearlescent', 'Metal'], ['carbon-fiber', 'Carbon fibre', 'Metal'], ['glitter', 'Glitter', 'Metal'], ['sandblasted', 'Sandblasted metal', 'Metal'], ['satin-chrome', 'Satin chrome', 'Metal'],
   ['honeycomb', 'Honeycomb emboss', 'Pattern'], ['seigaiha', 'Seigaiha waves', 'Pattern'], ['girih', 'Islamic star lattice', 'Pattern'], ['houndstooth', 'Houndstooth', 'Pattern'], ['gingham', 'Gingham', 'Pattern'], ['polka', 'Polka dots', 'Pattern'], ['argyle', 'Argyle', 'Pattern'], ['fluted', 'Fluted ribs', 'Pattern'],
+  ...PATTERNS,
 ].map(([id, name, category]) => ({ id, name, category }))
 
 /** Physical hints the 3D renderer applies on top of the substrate preset for a finish. */
@@ -29,7 +31,7 @@ export const TEXTURE_FINISHES: Record<string, TextureFinish> = {
   quilted: { bump: 1.6 }, honeycomb: { bump: 1.3 }, fluted: { bump: 1.4 }, 'exposed-flute': { bump: 1.5 }, slate: { roughness: .9 },
 }
 /** Textures that paint their own colours (all others are neutral grain multiplied over the base colour). */
-export const TINTED_TEXTURES = new Set(['holographic', 'pearlescent', 'glitter', 'terrazzo', 'seed-paper', 'burl'])
+export const TINTED_TEXTURES = new Set(['holographic', 'pearlescent', 'glitter', 'terrazzo', 'seed-paper', 'burl', ...PATTERN_IDS])
 export const DEFAULT_SURFACE: Surface = { texture: 'none', scale: 1, strength: .5, rotation: 0 }
 export const getSurface = (design: Design): Surface => ({ ...DEFAULT_SURFACE, ...design.surface })
 export const textureName = (id: string) => TEXTURES.find(texture => texture.id === id)?.name ?? 'Smooth'
