@@ -1,4 +1,5 @@
 import { TEXTURES } from './textures'
+import { PATTERN_IDS, paintPattern } from './texture-patterns'
 
 /**
  * Deterministic seamless material tiles, generated on demand with no remote images.
@@ -29,6 +30,7 @@ function paintTexture(id: string, strength: number, size: number) {
   const unit = size / 512
   ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, size, size)
   if (id === 'none') return canvas
+  if (PATTERN_IDS.has(id)) { paintPattern(ctx, id, strength, size, random); return canvas }
   if (EXTENDED.has(id)) { paintExtended(ctx, id, strength, size, random); return canvas }
   const line = (points: number[], opacity = .15, width = 1) => {
     ctx.strokeStyle = `rgba(25,25,25,${opacity * strength})`; ctx.lineWidth = width * unit
