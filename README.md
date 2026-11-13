@@ -73,8 +73,9 @@ Planned work, in rough priority order. Items get checked off as they ship.
 - [ ] Wire the animated AI cursor (`mina:build-step`) to the engine's `playBuild` / `onBuildProgress` so the cursor really builds the model
 
 ### 3. Texture library (100+ textures)
-- [x] Built-in library of 98 textures and patterns (62 material finishes + 36 new colourful patterns: florals, wedding, geometric, abstract, seasonal)
-- [ ] Grow the library past 100+ with solid colours and gradients packs
+- [x] Built-in library of 122 textures and patterns (62 material finishes + 36 colourful patterns + 12 solid colours + 12 gradients)
+- [x] Grow the library past 100+ with solid colours and gradients packs
+- [ ] More packs: metallic foil gradients, kids and festive (Eid, Diwali, Christmas) patterns
 - [ ] Import textures from free texture websites (CC0 sources such as Poly Haven, ambientCG) with search inside the Studio
 - [ ] Upload your own texture or image and map it on any face
 - [ ] Texture controls: scale, rotate, offset, tint, roughness, metallic
