@@ -3,6 +3,19 @@
  * seamless: every motif is drawn with wrap-around copies, so tiles repeat with no seam.
  * Colours are painted (these ids are listed as tinted textures); `strength` scales opacity.
  */
+/** Solid colour packs: id -> [name, colour]. */
+const SOLIDS: Record<string, [string, string]> = {
+  'solid-ivory': ['Ivory', '#f6f0e1'], 'solid-blush': ['Blush pink', '#f4c6cf'], 'solid-sage': ['Sage green', '#a9bfa0'], 'solid-navy': ['Navy', '#1f2f55'],
+  'solid-burgundy': ['Burgundy', '#6d1f33'], 'solid-gold': ['Champagne gold', '#d8bb78'], 'solid-charcoal': ['Charcoal', '#2d2f33'], 'solid-terracotta': ['Terracotta', '#c4694a'],
+  'solid-sky': ['Sky blue', '#9cc7e8'], 'solid-lilac': ['Lilac', '#c8b4e3'], 'solid-mustard': ['Mustard', '#d9a420'], 'solid-forest': ['Forest green', '#24473a'],
+}
+/** Gradient packs: id -> [name, angle in degrees, colour stops]. */
+const GRADIENTS: Record<string, [string, number, string[]]> = {
+  'grad-sunset': ['Sunset', 90, ['#ff9a5a', '#f2547d', '#6b3fa0']], 'grad-ocean': ['Ocean', 90, ['#7ad0e0', '#2f7fc1', '#14305e']], 'grad-rose-gold': ['Rose gold', 45, ['#f3c9b8', '#d9958a', '#f6d9c9']],
+  'grad-aurora': ['Aurora', 135, ['#4ade9b', '#3b82f6', '#9b5de5']], 'grad-peach': ['Peach cream', 90, ['#ffe3d0', '#ffb59a']], 'grad-mint': ['Mint fresh', 90, ['#d6f5e6', '#7fd1ae']],
+  'grad-lavender': ['Lavender haze', 90, ['#efe4fb', '#b79be0']], 'grad-gold-foil': ['Gold foil', 45, ['#a8802c', '#f2dc8e', '#c9a24b', '#f2dc8e']], 'grad-midnight': ['Midnight', 90, ['#2b3a6b', '#0d1230']],
+  'grad-berry': ['Berry', 135, ['#e04f8a', '#7b2d8e']], 'grad-forest': ['Forest mist', 90, ['#9cc9a8', '#2d5d46']], 'grad-silver': ['Silver sheen', 45, ['#9aa0a8', '#f1f3f5', '#8b9199', '#eef0f2']],
+}
 export const PATTERNS: [id: string, name: string, category: string][] = [
   ['rose-garden', 'Rose garden', 'Floral'], ['daisy-meadow', 'Daisy meadow', 'Floral'], ['cherry-blossom', 'Cherry blossom', 'Floral'], ['tulip-field', 'Tulip field', 'Floral'],
   ['sunflower', 'Sunflowers', 'Floral'], ['lotus', 'Lotus bloom', 'Floral'], ['peony', 'Peony blush', 'Floral'], ['wildflower', 'Wildflower mix', 'Floral'],
@@ -13,6 +26,8 @@ export const PATTERNS: [id: string, name: string, category: string][] = [
   ['zigzag', 'Zigzag', 'Geometric'], ['stars', 'Scattered stars', 'Geometric'], ['memphis', 'Memphis shapes', 'Geometric'], ['circles', 'Overlapping circles', 'Geometric'],
   ['watercolor', 'Watercolor wash', 'Abstract'], ['brush-strokes', 'Brush strokes', 'Abstract'], ['ink-marble', 'Ink marbling', 'Abstract'], ['topographic', 'Topographic lines', 'Abstract'],
   ['confetti', 'Confetti', 'Abstract'], ['snowflakes', 'Snowflakes', 'Seasonal'], ['autumn-leaves', 'Autumn leaves', 'Seasonal'], ['night-sky', 'Starry night', 'Seasonal'],
+  ...Object.entries(SOLIDS).map(([id, v]) => [id, v[0], 'Solid'] as [string, string, string]),
+  ...Object.entries(GRADIENTS).map(([id, v]) => [id, v[0], 'Gradient'] as [string, string, string]),
 ]
 export const PATTERN_IDS = new Set(PATTERNS.map(p => p[0]))
 const TAU = Math.PI * 2
@@ -43,6 +58,14 @@ export function paintPattern(ctx: CanvasRenderingContext2D, id: string, strength
   const scatter = (count: number, fn: (x: number, y: number) => void) => { for (let i = 0; i < count; i++) fn(random() * 512, random() * 512) }
   const polygon = (x: number, y: number, r: number, n: number, rot: number, color: string, o = 1) => wrap(x, y, r, (px, py) => { col(color, o); ctx.beginPath(); for (let i = 0; i < n; i++) { const t = rot + i * TAU / n; if (i) ctx.lineTo(px + Math.cos(t) * r, py + Math.sin(t) * r); else ctx.moveTo(px + Math.cos(t) * r, py + Math.sin(t) * r) } ctx.closePath(); ctx.fill() })
   ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+  const solid = SOLIDS[id], grad = GRADIENTS[id]
+  if (solid) { ctx.globalAlpha = 1; ctx.fillStyle = solid[1]; ctx.fillRect(0, 0, 512, 512); ctx.restore(); return }
+  if (grad) {
+    const t = grad[1] * Math.PI / 180, dx = Math.cos(t) * 256, dy = Math.sin(t) * 256, g = ctx.createLinearGradient(256 - dx, 256 - dy, 256 + dx, 256 + dy), st = [...grad[2]]
+    st.push(...st.slice(0, -1).reverse()) // mirrored stops so the tile repeats without a hard seam
+    st.forEach((c, i) => g.addColorStop(i / (st.length - 1), c))
+    ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.fillRect(0, 0, 512, 512); ctx.restore(); return
+  }
   switch (id) {
     case 'rose-garden': scatter(10, (x, y) => { leaf(x, y, 40, random() * TAU, '#3f8f67', .8); leaf(x, y, 34, random() * TAU, '#2f6b4f', .8) }); scatter(14, (x, y) => { const c = pick(PALETTES.rose); for (let i = 3; i > 0; i--) petals(x, y, 10 + i * 8, 6, c, i, .5 + i * .05); dot(x, y, 6, '#8c2d44') }); break
     case 'daisy-meadow': scatter(16, (x, y) => flower(x, y, 24 + random() * 10, 12, PALETTES.daisy.slice(0, 1), '#f5b700')); scatter(10, (x, y) => leaf(x, y, 26, random() * TAU, '#6aa97f', .7)); break
