@@ -7,7 +7,7 @@ const bundle = await build({ stdin: { contents: `export * from './src/lib/gemini
 const api = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
 const initial = api.newDesign('Typography regression test')
 const preview = { camera: 'front', openBox: false, autoRotate: false }
-assert.equal(api.TEXTURES.length, 122)
+assert.equal(api.TEXTURES.length, 136)
 assert.equal(new Set(api.TEXTURES.map(t => t.id)).size, api.TEXTURES.length)
 assert.equal(api.DESIGN_TOOL_DECLARATIONS.length, 21)
 // Texture names are matched forgivingly (a near-miss never fails a build), but always resolve to a real texture id.

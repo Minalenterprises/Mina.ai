@@ -15,6 +15,11 @@ const GRADIENTS: Record<string, [string, number, string[]]> = {
   'grad-aurora': ['Aurora', 135, ['#4ade9b', '#3b82f6', '#9b5de5']], 'grad-peach': ['Peach cream', 90, ['#ffe3d0', '#ffb59a']], 'grad-mint': ['Mint fresh', 90, ['#d6f5e6', '#7fd1ae']],
   'grad-lavender': ['Lavender haze', 90, ['#efe4fb', '#b79be0']], 'grad-gold-foil': ['Gold foil', 45, ['#a8802c', '#f2dc8e', '#c9a24b', '#f2dc8e']], 'grad-midnight': ['Midnight', 90, ['#2b3a6b', '#0d1230']],
   'grad-berry': ['Berry', 135, ['#e04f8a', '#7b2d8e']], 'grad-forest': ['Forest mist', 90, ['#9cc9a8', '#2d5d46']], 'grad-silver': ['Silver sheen', 45, ['#9aa0a8', '#f1f3f5', '#8b9199', '#eef0f2']],
+  'foil-copper': ['Copper foil', 45, ['#7a3b1d', '#e39a68', '#b2602f', '#f0b88a']], 'foil-bronze': ['Bronze foil', 45, ['#5e4220', '#c99b5a', '#8a6232', '#d9b27a']], 'foil-rose': ['Rose foil', 45, ['#a8606a', '#f4c0c4', '#c07f86', '#f8d4d4']],
+  'foil-holo': ['Holographic foil', 45, ['#ff9ad5', '#9ad8ff', '#b6ffb0', '#ffe49a', '#c4a0ff']], 'foil-emerald': ['Emerald foil', 45, ['#0b4a38', '#4fd1a0', '#127256', '#7fe5c0']], 'foil-sapphire': ['Sapphire foil', 45, ['#11275e', '#5a8cf0', '#1c3f8f', '#8fb2ff']],
+  'foil-pewter': ['Pewter foil', 45, ['#55595f', '#c4c8ce', '#6e737a', '#d9dce0']], 'foil-champagne': ['Champagne foil', 45, ['#b89a62', '#f7e8c4', '#cfb180', '#faf0d8']],
+  'fest-eid': ['Eid emerald and gold', 90, ['#0f5d46', '#1f8a68', '#d8b45a']], 'fest-diwali': ['Diwali glow', 90, ['#ffb300', '#ff6a00', '#b3122f']], 'fest-christmas': ['Christmas', 135, ['#a3122a', '#1e6b3c']],
+  'fest-holiday-snow': ['Winter frost', 90, ['#e8f3ff', '#a9cdf0', '#5f8fcf']], 'fest-pastel-kids': ['Kids pastel', 135, ['#ffc9de', '#c9e7ff', '#fff2b8']], 'fest-rainbow': ['Rainbow', 90, ['#ff6b6b', '#ffd93d', '#6bcf7f', '#4d9de0', '#9b5de5']],
 }
 export const PATTERNS: [id: string, name: string, category: string][] = [
   ['rose-garden', 'Rose garden', 'Floral'], ['daisy-meadow', 'Daisy meadow', 'Floral'], ['cherry-blossom', 'Cherry blossom', 'Floral'], ['tulip-field', 'Tulip field', 'Floral'],
@@ -27,7 +32,7 @@ export const PATTERNS: [id: string, name: string, category: string][] = [
   ['watercolor', 'Watercolor wash', 'Abstract'], ['brush-strokes', 'Brush strokes', 'Abstract'], ['ink-marble', 'Ink marbling', 'Abstract'], ['topographic', 'Topographic lines', 'Abstract'],
   ['confetti', 'Confetti', 'Abstract'], ['snowflakes', 'Snowflakes', 'Seasonal'], ['autumn-leaves', 'Autumn leaves', 'Seasonal'], ['night-sky', 'Starry night', 'Seasonal'],
   ...Object.entries(SOLIDS).map(([id, v]) => [id, v[0], 'Solid'] as [string, string, string]),
-  ...Object.entries(GRADIENTS).map(([id, v]) => [id, v[0], 'Gradient'] as [string, string, string]),
+  ...Object.entries(GRADIENTS).map(([id, v]) => [id, v[0], id.startsWith('foil-') ? 'Foil' : id.startsWith('fest-') ? 'Festive' : 'Gradient'] as [string, string, string]),
 ]
 export const PATTERN_IDS = new Set(PATTERNS.map(p => p[0]))
 const TAU = Math.PI * 2
