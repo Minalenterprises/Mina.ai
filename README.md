@@ -73,11 +73,12 @@ Planned work, in rough priority order. Items get checked off as they ship.
 - [ ] Wire the animated AI cursor (`mina:build-step`) to the engine's `playBuild` / `onBuildProgress` so the cursor really builds the model
 
 ### 3. Texture library (100+ textures)
-- [x] Built-in library of 148 textures and patterns (62 material finishes + 36 colourful patterns + 12 solid colours + 12 gradients)
+- [x] Built-in library of 156 textures and patterns (62 material finishes + 44 colourful patterns + 12 solid colours + 12 gradients)
 - [x] Grow the library past 100+ with solid colours and gradients packs
 - [x] Metallic foil gradients (8) and festive / kids gradients (Eid, Diwali, Christmas, winter, pastel, rainbow): library now 136
 - [x] Festive and kids motif patterns: Eid crescents, diyas, snowmen, Christmas trees, fireworks, paw prints, shapes, clouds, rainbows, balloons, party dots, candy stripes (library now 148)
-- [ ] More motif packs: Ramadan lanterns, Halloween, birthday cakes, dinosaurs, space, ocean animals, farm animals
+- [x] More motif packs: Ramadan lanterns, Halloween pumpkins and bats, birthday cupcakes, dino eggs, space planets, ocean fish, farm chicks (library now 156)
+- [ ] Next motif ideas: Valentine hearts, Easter, floral bouquets, wedding florals, geometric Islamic tiles, school/stationery doodles
 - [ ] Import textures from free texture websites (CC0 sources such as Poly Haven, ambientCG) with search inside the Studio
 - [ ] Upload your own texture or image and map it on any face
 - [ ] Texture controls: scale, rotate, offset, tint, roughness, metallic
