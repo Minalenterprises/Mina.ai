@@ -79,7 +79,8 @@ Planned work, in rough priority order. Items get checked off as they ship.
 - [x] Festive and kids motif patterns: Eid crescents, diyas, snowmen, Christmas trees, fireworks, paw prints, shapes, clouds, rainbows, balloons, party dots, candy stripes (library now 148)
 - [x] More motif packs: Ramadan lanterns, Halloween pumpkins and bats, birthday cupcakes, dino eggs, space planets, ocean fish, farm chicks (library now 156)
 - [x] Valentine hearts, Easter eggs, floral bouquets, wedding florals, Islamic geometric tiles and school doodles (library now 162)
-- [ ] Next motif ideas: Mother's/Father's day, baby shower, Holi colours, Lunar New Year, sports balls, coffee/food doodles, bakery and spice patterns
+- [x] Sports balls, coffee doodles, baby shower, Holi colour splash, Lunar New Year and spice patterns (library now 168)
+- [ ] Next motif ideas: Mother's/Father's day, bakery and bread doodles, Diwali rangoli, Hajj/Umrah, graduation, travel stamps, tropical leaves
 - [ ] Import textures from free texture websites (CC0 sources such as Poly Haven, ambientCG) with search inside the Studio
 - [ ] Upload your own texture or image and map it on any face
 - [ ] Texture controls: scale, rotate, offset, tint, roughness, metallic
