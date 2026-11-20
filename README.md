@@ -81,7 +81,8 @@ Planned work, in rough priority order. Items get checked off as they ship.
 - [x] Valentine hearts, Easter eggs, floral bouquets, wedding florals, Islamic geometric tiles and school doodles (library now 162)
 - [x] Sports balls, coffee doodles, baby shower, Holi colour splash, Lunar New Year and spice patterns (library now 168)
 - [x] Parents day hearts, bakery doodles, Diwali rangoli, graduation, travel stamps and tropical leaves (library now 174)
-- [ ] Next motif ideas: Hajj/Umrah, Eid mubarak gold, Navratri garba, pets, retro 70s, art deco, marble swirls, kawaii food
+- [x] Eid Mubarak gold, Navratri garba, pets, retro 70s, art deco gold fans and kawaii food patterns (library now 180)
+- [ ] Next motif ideas: Hajj/Umrah, marble swirls, Memphis 80s, sushi, vintage botanical, mandala, wedding lace, polka retro
 - [ ] Import textures from free texture websites (CC0 sources such as Poly Haven, ambientCG) with search inside the Studio
 - [ ] Upload your own texture or image and map it on any face
 - [ ] Texture controls: scale, rotate, offset, tint, roughness, metallic
