@@ -83,7 +83,8 @@ Planned work, in rough priority order. Items get checked off as they ship.
 - [x] Parents day hearts, bakery doodles, Diwali rangoli, graduation, travel stamps and tropical leaves (library now 174)
 - [x] Eid Mubarak gold, Navratri garba, pets, retro 70s, art deco gold fans and kawaii food patterns (library now 180)
 - [x] Marble swirls, Memphis 80s, sushi, mandala, wedding lace and retro polka patterns (library now 186)
-- [ ] Next motif ideas: Hajj/Umrah, vintage botanical, art nouveau, tartan, batik, ikat, watercolor washes
+- [x] Batik waves, ikat diamonds, watercolor washes, vintage botanical and Hajj/Umrah gold patterns (library now 191)
+- [ ] Next motif ideas: art nouveau, damask, toile, houndstooth, terrazzo, chinoiserie, paisley
 - [ ] Import textures from free texture websites (CC0 sources such as Poly Haven, ambientCG) with search inside the Studio
 - [ ] Upload your own texture or image and map it on any face
 - [ ] Texture controls: scale, rotate, offset, tint, roughness, metallic
