@@ -46,6 +46,8 @@ export const PATTERNS: [id: string, name: string, category: string][] = [
   ['deco-fans', 'Art deco gold fans', 'Geometric'], ['kawaii-food', 'Kawaii food', 'Food'],
   ['marble-swirl', 'Marble swirls', 'Geometric'], ['memphis-80s', 'Memphis 80s', 'Geometric'], ['sushi', 'Sushi doodles', 'Food'], ['mandala', 'Mandala medallions', 'Geometric'],
   ['wedding-lace', 'Wedding lace', 'Floral'], ['polka-retro', 'Retro polka dots', 'Geometric'],
+  ['batik', 'Batik waves', 'Geometric'], ['ikat', 'Ikat diamonds', 'Geometric'], ['watercolor-wash', 'Watercolor washes', 'Gradient'],
+  ['vintage-botanical', 'Vintage botanical', 'Floral'], ['umrah-gold', 'Hajj and Umrah gold', 'Festive'],
   ...Object.entries(SOLIDS).map(([id, v]) => [id, v[0], 'Solid'] as [string, string, string]),
   ...Object.entries(GRADIENTS).map(([id, v]) => [id, v[0], id.startsWith('foil-') ? 'Foil' : id.startsWith('fest-') ? 'Festive' : 'Gradient'] as [string, string, string]),
 ]
@@ -171,6 +173,11 @@ export function paintPattern(ctx: CanvasRenderingContext2D, id: string, strength
     case 'mandala': ctx.globalAlpha = a * .9; ctx.fillStyle = '#2a1646'; ctx.fillRect(0, 0, 512, 512); grid(256, (x, y) => wrap(x + 128, y + 128, 120, (px, py) => { petals(px, py, 110, 16, '#e0457b', 0, .9); petals(px, py, 84, 12, '#f5a623', .2, .95); petals(px, py, 58, 8, '#4ecdc4', .1, .95); dot(px, py, 14, '#fff3c4') })); break
     case 'wedding-lace': ctx.globalAlpha = a * .8; ctx.fillStyle = '#fbf6ef'; ctx.fillRect(0, 0, 512, 512); grid(128, (x, y) => wrap(x + 64, y + 64, 60, (px, py) => { petals(px, py, 40, 8, '#e6d5c3', 0, .95); petals(px, py, 24, 8, '#cdb79e', .39, .95); dot(px, py, 6, '#fbf6ef'); for (let i = 0; i < 8; i++) dot(px + Math.cos(i * TAU / 8) * 54, py + Math.sin(i * TAU / 8) * 54, 3, '#d9c6b0') })); break
     case 'polka-retro': ctx.globalAlpha = a * .9; ctx.fillStyle = '#f7c59f'; ctx.fillRect(0, 0, 512, 512); grid(64, (x, y, r) => wrap(x + (r % 2 ? 32 : 0), y, 24, (px, py) => dot(px, py, 14, r % 2 ? '#2a9d8f' : '#e76f51'))); break
+    case 'batik': ctx.globalAlpha = a * .9; ctx.fillStyle = '#3b2314'; ctx.fillRect(0, 0, 512, 512); for (let r = 0; r < 8; r++) { ctx.strokeStyle = r % 2 ? '#e9c98f' : '#c98a4b'; ctx.lineWidth = 3; ctx.beginPath(); for (let x = 0; x <= 512; x += 8) { const y = r * 64 + 32 + Math.sin(x / 32 + r) * 14; if (x) ctx.lineTo(x, y); else ctx.moveTo(x, y) } ctx.stroke() } grid(64, (x, y, r) => wrap(x + (r % 2 ? 32 : 0), y + 32, 8, (px, py) => dot(px, py, 4, '#f5e6c8'))); break
+    case 'ikat': ctx.globalAlpha = a * .9; ctx.fillStyle = '#16324f'; ctx.fillRect(0, 0, 512, 512); grid(128, (x, y) => wrap(x + 64, y + 64, 64, (px, py) => { polygon(px, py, 58, 4, 0, '#e4572e', .9); polygon(px, py, 38, 4, 0, '#f3a712', .9); polygon(px, py, 18, 4, 0, '#fdf6e3', .95) })); break
+    case 'watercolor-wash': ctx.globalAlpha = a * .8; ctx.fillStyle = '#fdfbf7'; ctx.fillRect(0, 0, 512, 512); scatter(14, (x, y) => dot(x, y, 50 + random() * 60, pick(['#a8d8ea', '#f6c1cc', '#fbe7a1', '#c5e1a5', '#d1c4e9']), .35)); break
+    case 'vintage-botanical': ctx.globalAlpha = a * .85; ctx.fillStyle = '#f1e7d0'; ctx.fillRect(0, 0, 512, 512); scatter(16, (x, y) => { leaf(x, y, 40 + random() * 20, random() * TAU, pick(['#5b7553', '#8a9a5b', '#7d4e3a']), .85); dot(x, y, 4, '#b5483a') }); break
+    case 'umrah-gold': ctx.globalAlpha = a * .95; ctx.fillStyle = '#0b0b0d'; ctx.fillRect(0, 0, 512, 512); grid(128, (x, y) => wrap(x + 64, y + 64, 60, (px, py) => { polygon(px, py, 50, 8, Math.PI / 8, '#d4af37', .9); polygon(px, py, 40, 8, 0, '#0b0b0d', 1); polygon(px, py, 24, 4, Math.PI / 4, '#d4af37', .95) })); break
     case 'autumn-leaves': scatter(30, (x, y) => leaf(x, y, 34 + random() * 20, random() * TAU, pick(PALETTES.autumn), .88)); break
     case 'night-sky': ctx.globalAlpha = a * .85; ctx.fillStyle = '#1b2a4a'; ctx.fillRect(0, 0, 512, 512); scatter(120, (x, y) => dot(x, y, .8 + random() * 2, '#fff7d6', .95)); scatter(14, (x, y) => polygon(x, y, 8, 4, Math.PI / 4, '#ffe9a8', .95)); break
   }
