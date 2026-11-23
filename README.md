@@ -84,7 +84,8 @@ Planned work, in rough priority order. Items get checked off as they ship.
 - [x] Eid Mubarak gold, Navratri garba, pets, retro 70s, art deco gold fans and kawaii food patterns (library now 180)
 - [x] Marble swirls, Memphis 80s, sushi, mandala, wedding lace and retro polka patterns (library now 186)
 - [x] Batik waves, ikat diamonds, watercolor washes, vintage botanical and Hajj/Umrah gold patterns (library now 191)
-- [ ] Next motif ideas: art nouveau, damask, toile, houndstooth, terrazzo, chinoiserie, paisley
+- [x] Gingham, houndstooth, terrazzo, paisley, art nouveau and toile patterns (library now 197)
+- [ ] Next motif ideas: chinoiserie, argyle, tartan, leopard, zebra, tie-dye
 - [ ] Import textures from free texture websites (CC0 sources such as Poly Haven, ambientCG) with search inside the Studio
 - [ ] Upload your own texture or image and map it on any face
 - [ ] Texture controls: scale, rotate, offset, tint, roughness, metallic

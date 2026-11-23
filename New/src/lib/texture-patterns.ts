@@ -48,6 +48,8 @@ export const PATTERNS: [id: string, name: string, category: string][] = [
   ['wedding-lace', 'Wedding lace', 'Floral'], ['polka-retro', 'Retro polka dots', 'Geometric'],
   ['batik', 'Batik waves', 'Geometric'], ['ikat', 'Ikat diamonds', 'Geometric'], ['watercolor-wash', 'Watercolor washes', 'Gradient'],
   ['vintage-botanical', 'Vintage botanical', 'Floral'], ['umrah-gold', 'Hajj and Umrah gold', 'Festive'],
+  ['gingham-red', 'Gingham', 'Geometric'], ['houndstooth-bw', 'Houndstooth', 'Geometric'], ['terrazzo-chips', 'Terrazzo chips', 'Geometric'],
+  ['paisley', 'Paisley', 'Floral'], ['art-nouveau', 'Art nouveau', 'Floral'], ['toile', 'Toile blossoms', 'Floral'],
   ...Object.entries(SOLIDS).map(([id, v]) => [id, v[0], 'Solid'] as [string, string, string]),
   ...Object.entries(GRADIENTS).map(([id, v]) => [id, v[0], id.startsWith('foil-') ? 'Foil' : id.startsWith('fest-') ? 'Festive' : 'Gradient'] as [string, string, string]),
 ]
@@ -178,6 +180,12 @@ export function paintPattern(ctx: CanvasRenderingContext2D, id: string, strength
     case 'watercolor-wash': ctx.globalAlpha = a * .8; ctx.fillStyle = '#fdfbf7'; ctx.fillRect(0, 0, 512, 512); scatter(14, (x, y) => dot(x, y, 50 + random() * 60, pick(['#a8d8ea', '#f6c1cc', '#fbe7a1', '#c5e1a5', '#d1c4e9']), .35)); break
     case 'vintage-botanical': ctx.globalAlpha = a * .85; ctx.fillStyle = '#f1e7d0'; ctx.fillRect(0, 0, 512, 512); scatter(16, (x, y) => { leaf(x, y, 40 + random() * 20, random() * TAU, pick(['#5b7553', '#8a9a5b', '#7d4e3a']), .85); dot(x, y, 4, '#b5483a') }); break
     case 'umrah-gold': ctx.globalAlpha = a * .95; ctx.fillStyle = '#0b0b0d'; ctx.fillRect(0, 0, 512, 512); grid(128, (x, y) => wrap(x + 64, y + 64, 60, (px, py) => { polygon(px, py, 50, 8, Math.PI / 8, '#d4af37', .9); polygon(px, py, 40, 8, 0, '#0b0b0d', 1); polygon(px, py, 24, 4, Math.PI / 4, '#d4af37', .95) })); break
+    case 'gingham-red': ctx.globalAlpha = a * .9; ctx.fillStyle = '#fbf7f0'; ctx.fillRect(0, 0, 512, 512); ctx.globalAlpha = a * .5; ctx.fillStyle = '#d6293e'; for (let i = 0; i < 8; i++) { ctx.fillRect(i * 64, 0, 32, 512); ctx.fillRect(0, i * 64, 512, 32) } break
+    case 'houndstooth-bw': ctx.globalAlpha = a * .95; ctx.fillStyle = '#f4f1ea'; ctx.fillRect(0, 0, 512, 512); grid(64, (x, y) => wrap(x + 32, y + 32, 34, (px, py) => { col('#1d1d1f', 1); ctx.beginPath(); ctx.moveTo(px - 32, py - 32); ctx.lineTo(px, py - 32); ctx.lineTo(px + 32, py); ctx.lineTo(px + 32, py + 32); ctx.lineTo(px, py + 32); ctx.lineTo(px - 32, py); ctx.closePath(); ctx.fill() })); break
+    case 'terrazzo-chips': ctx.globalAlpha = a * .9; ctx.fillStyle = '#efe8dc'; ctx.fillRect(0, 0, 512, 512); scatter(60, (x, y) => polygon(x, y, 10 + random() * 16, 5 + Math.floor(random() * 3), random() * TAU, pick(['#e76f51', '#2a9d8f', '#264653', '#e9c46a', '#b5838d']), .95)); break
+    case 'paisley': ctx.globalAlpha = a * .9; ctx.fillStyle = '#1f2a5a'; ctx.fillRect(0, 0, 512, 512); grid(128, (x, y, r) => wrap(x + 64, y + 64, 56, (px, py) => { leaf(px, py, 48, r % 2 ? 2.4 : .8, '#f2a541', .95); leaf(px, py, 30, r % 2 ? 2.4 : .8, '#d1495b', .95); dot(px, py, 5, '#fdf6e3') })); break
+    case 'art-nouveau': ctx.globalAlpha = a * .9; ctx.fillStyle = '#e8dfc4'; ctx.fillRect(0, 0, 512, 512); grid(128, (x, y) => wrap(x + 64, y + 64, 60, (px, py) => { for (let i = 0; i < 4; i++) leaf(px, py, 54, i * TAU / 4 + .4, i % 2 ? '#6b8f71' : '#3f6b57', .9); petals(px, py, 22, 6, '#c8553d', 0, .5); dot(px, py, 5, '#f2cc8f') })); break
+    case 'toile': ctx.globalAlpha = a * .9; ctx.fillStyle = '#f7f3ea'; ctx.fillRect(0, 0, 512, 512); grid(128, (x, y, r) => wrap(x + 64, y + 64, 56, (px, py) => { petals(px, py, 34, 5, '#3b5b8c', r % 2 ? .3 : 0, .4); leaf(px, py, 50, 1.1, '#5e7fb3', .85); leaf(px, py, 50, 4.2, '#5e7fb3', .85); dot(px, py, 6, '#f7f3ea') })); break
     case 'autumn-leaves': scatter(30, (x, y) => leaf(x, y, 34 + random() * 20, random() * TAU, pick(PALETTES.autumn), .88)); break
     case 'night-sky': ctx.globalAlpha = a * .85; ctx.fillStyle = '#1b2a4a'; ctx.fillRect(0, 0, 512, 512); scatter(120, (x, y) => dot(x, y, .8 + random() * 2, '#fff7d6', .95)); scatter(14, (x, y) => polygon(x, y, 8, 4, Math.PI / 4, '#ffe9a8', .95)); break
   }
