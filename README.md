@@ -86,7 +86,7 @@ Planned work, in rough priority order. Items get checked off as they ship.
 - [x] Batik waves, ikat diamonds, watercolor washes, vintage botanical and Hajj/Umrah gold patterns (library now 191)
 - [x] Gingham, houndstooth, terrazzo, paisley, art nouveau and toile patterns (library now 197)
 - [x] Argyle, highland tartan, leopard, zebra, tie-dye and chinoiserie patterns (library now 203)
-- [x] Brocade, snakeskin, camouflage, polka stars, geometric kilim and seigaiha wave patterns (library now 209)
+- [x] Brocade, snakeskin, camouflage, polka stars, geometric kilim and blue ocean wave patterns (library now 209)
 - [ ] Next motif ideas: bandana paisley, herringbone, quatrefoil, mud-cloth, cheetah
 - [ ] Import textures from free texture websites (CC0 sources such as Poly Haven, ambientCG) with search inside the Studio
 - [ ] Upload your own texture or image and map it on any face

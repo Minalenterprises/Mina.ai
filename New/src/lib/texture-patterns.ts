@@ -53,7 +53,7 @@ export const PATTERNS: [id: string, name: string, category: string][] = [
   ['argyle-gold', 'Argyle gold diamonds', 'Geometric'], ['highland-tartan', 'Highland tartan', 'Geometric'], ['leopard', 'Leopard spots', 'Animal'],
   ['zebra', 'Zebra stripes', 'Animal'], ['tie-dye', 'Tie-dye swirl', 'Gradient'], ['chinoiserie', 'Chinoiserie blossoms', 'Floral'],
   ['brocade', 'Brocade', 'Floral'], ['snakeskin', 'Snakeskin', 'Animal'], ['camouflage', 'Camouflage', 'Geometric'],
-  ['polka-stars', 'Polka stars', 'Festive'], ['kilim', 'Geometric kilim', 'Geometric'], ['seigaiha', 'Seigaiha waves', 'Geometric'],
+  ['polka-stars', 'Polka stars', 'Festive'], ['kilim', 'Geometric kilim', 'Geometric'], ['seigaiha-blue', 'Blue ocean waves', 'Geometric'],
   ...Object.entries(SOLIDS).map(([id, v]) => [id, v[0], 'Solid'] as [string, string, string]),
   ...Object.entries(GRADIENTS).map(([id, v]) => [id, v[0], id.startsWith('foil-') ? 'Foil' : id.startsWith('fest-') ? 'Festive' : 'Gradient'] as [string, string, string]),
 ]
@@ -201,7 +201,7 @@ export function paintPattern(ctx: CanvasRenderingContext2D, id: string, strength
     case 'camouflage': ctx.globalAlpha = a * .95; ctx.fillStyle = '#6a7a4a'; ctx.fillRect(0, 0, 512, 512); ['#3d4a2b', '#a89f78', '#2b2a22'].forEach(c => scatter(14, (x, y) => wrap(x, y, 50, (px, py) => { ctx.globalAlpha = a * .95; ctx.fillStyle = c; ctx.beginPath(); ctx.ellipse(px, py, 30 + random() * 30, 16 + random() * 20, random() * TAU, 0, TAU); ctx.fill() }))); break
     case 'polka-stars': ctx.globalAlpha = a * .95; ctx.fillStyle = '#16213e'; ctx.fillRect(0, 0, 512, 512); grid(64, (x, y, r) => wrap(x + 32, y + 32, 20, (px, py) => polygon(px, py, 16, 10, r % 2 ? 0 : Math.PI / 10, r % 2 ? '#ffd166' : '#ef476f', .95))); break
     case 'kilim': ctx.globalAlpha = a * .95; ctx.fillStyle = '#f1e4c8'; ctx.fillRect(0, 0, 512, 512); grid(128, (x, y) => wrap(x + 64, y + 64, 60, (px, py) => { polygon(px, py, 58, 4, 0, '#a4343a', .95); polygon(px, py, 38, 4, 0, '#1f4e5f', .95); polygon(px, py, 18, 4, 0, '#e0a526', .95) })); ctx.globalAlpha = a * .8; ctx.fillStyle = '#1f4e5f'; for (let i = 0; i < 16; i++) { ctx.fillRect(i * 32 + 12, 0, 8, 6); ctx.fillRect(i * 32 + 12, 506, 8, 6) } break
-    case 'seigaiha': ctx.globalAlpha = a * .95; ctx.fillStyle = '#e9f1f4'; ctx.fillRect(0, 0, 512, 512); for (let r = 11; r >= 0; r--) for (let c = -1; c < 9; c++) { const px = c * 64 + (r % 2 ? 32 : 0), py = r * 24; ['#1d4e89', '#e9f1f4', '#4c8bc4', '#e9f1f4', '#1d4e89'].forEach((col, i) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py + 40, 32 - i * 6, Math.PI, 0); ctx.fill() }) } break
+    case 'seigaiha-blue': ctx.globalAlpha = a * .95; ctx.fillStyle = '#e9f1f4'; ctx.fillRect(0, 0, 512, 512); for (let r = 11; r >= 0; r--) for (let c = -1; c < 9; c++) { const px = c * 64 + (r % 2 ? 32 : 0), py = r * 24; ['#1d4e89', '#e9f1f4', '#4c8bc4', '#e9f1f4', '#1d4e89'].forEach((col, i) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py + 40, 32 - i * 6, Math.PI, 0); ctx.fill() }) } break
     case 'autumn-leaves': scatter(30, (x, y) => leaf(x, y, 34 + random() * 20, random() * TAU, pick(PALETTES.autumn), .88)); break
     case 'night-sky': ctx.globalAlpha = a * .85; ctx.fillStyle = '#1b2a4a'; ctx.fillRect(0, 0, 512, 512); scatter(120, (x, y) => dot(x, y, .8 + random() * 2, '#fff7d6', .95)); scatter(14, (x, y) => polygon(x, y, 8, 4, Math.PI / 4, '#ffe9a8', .95)); break
   }
