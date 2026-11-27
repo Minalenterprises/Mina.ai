@@ -88,7 +88,8 @@ Planned work, in rough priority order. Items get checked off as they ship.
 - [x] Argyle, highland tartan, leopard, zebra, tie-dye and chinoiserie patterns (library now 203)
 - [x] Brocade, snakeskin, camouflage, polka stars, geometric kilim and blue ocean wave patterns (library now 209)
 - [x] Herringbone, quatrefoil, mud-cloth, cheetah and bandana paisley patterns (library now 214)
-- [ ] Next motif ideas: damask, chevron, shibori, ogee, pinstripe
+- [x] Chevron, shibori, ogee, pinstripe and scallop patterns (library now 219)
+- [ ] Next motif ideas: greek key, moroccan tile, plaid check,starburst, bamboo
 - [ ] Import textures from free texture websites (CC0 sources such as Poly Haven, ambientCG) with search inside the Studio
 - [ ] Upload your own texture or image and map it on any face
 - [ ] Texture controls: scale, rotate, offset, tint, roughness, metallic
